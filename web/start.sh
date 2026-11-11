@@ -5,7 +5,7 @@ LOG_DIR="${ATLAS_LOG_DIR:-$(dirname -- "$WEB_DIR")/logs}"
 if [[ -f "$WEB_DIR/.pid" ]] && kill -0 "$(cat "$WEB_DIR/.pid")" 2>/dev/null; then echo "已运行 PID $(cat "$WEB_DIR/.pid")"; exit 0; fi
 mkdir -p "$LOG_DIR"
 cd "$WEB_DIR"
-NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=${ATLAS_HEAP_MB:-8192}" setsid nohup node server.mjs >> "$LOG_DIR/web.log" 2>&1 < /dev/null &
+NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=${ATLAS_HEAP_MB:-3072}" setsid nohup node server.mjs >> "$LOG_DIR/web.log" 2>&1 < /dev/null &
 WEB_PID=$!
 echo "$WEB_PID" > "$WEB_DIR/.pid"
 sleep 1

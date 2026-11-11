@@ -1,1 +1,65 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plugin Atlas · 插件能力图谱</title><link rel="stylesheet" href="/style.css"></head><body><header><div class="brand"><b>◈ Plugin Atlas</b><span>插件能力图谱 / EXPLORE CONNECTIONS</span></div><div class="source" id="source">正在加载</div><button id="reload">↻ 重新加载</button></header><main><section class="explorer"><div class="intro"><small>THE PLUGIN LANDSCAPE</small><h1>从一个能力，发现更多可能。</h1><p>沿着分支探索插件的演化，理解它们如何连接、重叠与协作。</p></div><form id="search"><label class="searchbox">⌕ <input id="query" placeholder="搜索插件、中文能力或 README…" aria-label="搜索"></label><select id="mode" aria-label="检索模式"><option value="hybrid">混合检索</option><option value="fulltext">全文检索</option><option value="semantic">语义检索</option></select><button>搜索</button></form><div id="results" hidden></div><div class="graphbar"><span id="counts"></span><label><input type="checkbox" id="github-only"> 显示仅 GitHub 仓库（<span id="github-count">0</span>）</label><label><input type="checkbox" id="relations"> 显示关联弧线</label></div><div class="legend" id="legend"><span style="--c:#a694ff">● 知识与检索</span><span style="--c:#4fd1b1">● 自动化工作流</span><span style="--c:#ffb76b">● 开发者工具</span><span>○ 分支　● 插件</span></div><div id="graphwrap"><svg id="graph" role="img" aria-label="插件分叉图谱"></svg></div></section><aside id="detail"><div class="empty">◈<h2>选择一个节点</h2><p>查看插件、能力全集与演化关系</p></div></aside></main><script src="/vendor/marked.umd.js"></script><script src="/vendor/purify.min.js"></script><script type="module" src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Plugin Atlas · 插件能力图谱</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="brand">Plugin Atlas</div>
+      <div id="source" class="status" role="status">正在连接服务</div>
+      <div class="toolbar-actions">
+        <label
+          >主题
+          <select id="theme" aria-label="主题">
+            <option value="system">跟随系统</option>
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select></label
+        ><button id="reload" type="button">重新加载</button>
+      </div>
+      <form id="search">
+        <label class="searchbox"
+          ><span class="sr-only">搜索插件或能力</span
+          ><input id="query" placeholder="搜索插件或能力" autocomplete="off" /></label
+        ><select id="mode" aria-label="检索模式">
+          <option value="hybrid">混合检索</option>
+          <option value="fulltext">全文检索</option>
+          <option value="semantic">语义检索</option></select
+        ><button type="submit">搜索插件</button
+        ><label class="check"
+          ><input type="checkbox" id="github-only" /> 包含仅 GitHub <span id="github-count"></span
+        ></label>
+      </form>
+      <div id="results" hidden></div>
+    </header>
+    <main>
+      <section class="explorer" aria-label="分支树">
+        <div class="section-heading">
+          <div>
+            <h1>分支树</h1>
+            <p id="counts">浏览分类、分支与插件</p>
+          </div>
+        </div>
+        <div id="graphwrap">
+          <div id="graph" role="tree" aria-label="插件分支树">
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+          </div>
+        </div>
+      </section>
+      <section id="detail" aria-live="polite">
+        <div class="empty">
+          <h2>选择一个节点</h2>
+          <p>从左侧分支树选择分类、分支或插件，查看能力与分叉关系。</p>
+        </div>
+      </section>
+    </main>
+    <script src="/vendor/marked.umd.js"></script>
+    <script src="/vendor/purify.min.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

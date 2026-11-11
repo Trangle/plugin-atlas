@@ -31,3 +31,6 @@ r3/
 # old screenshots (keep docs/)
 web/screenshot*.png
 release/
+
+# web search index
+web/.index/

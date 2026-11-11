@@ -3,18 +3,11 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readJson, readLines, json, lines, stamp } from '../io.mjs';
 import { Budget } from '../budget.mjs';
+import { readReadme, readmeHash } from '../readme-store.mjs';
 import { createBackend } from '../model/index.mjs';
 const fp = (s, v) => createHash('sha256').update(s).digest('hex') + '|' + (v || '');
 async function readme(cfg, p) {
-  if (!p.readme_path) return '';
-  const rel = String(p.readme_path).replace(/^\.?\/?data\//, '');
-  const file = path.resolve(cfg.dataDir, rel);
-  if (!file.startsWith(cfg.dataDir + path.sep)) return '';
-  try {
-    return await fs.readFile(file, 'utf8');
-  } catch {
-    return '';
-  }
+  return readReadme(cfg.dataDir, p.readme_path);
 }
 function categories(graph) {
   const ns = graph.nodes || [];
@@ -60,8 +53,7 @@ async function extract(cfg, options = {}, services = {}) {
   const pluginIds = new Set(existing.keys());
   const overlay = await readLines(path.join(cfg.stateDir, 'overlay.jsonl'));
   const overlayFingerprints = new Map(overlay.map((p) => [p.id, p.fingerprint]));
-  for (const p of overlay)
-    existing.set(p.id, { ...existing.get(p.id), ...p });
+  for (const p of overlay) existing.set(p.id, { ...existing.get(p.id), ...p });
   const fingerprintsFile = path.join(cfg.stateDir, 'fingerprints.json');
   const saved = await readJson(fingerprintsFile, {});
   const first = !(await fs.stat(fingerprintsFile).catch(() => null));
@@ -71,15 +63,25 @@ async function extract(cfg, options = {}, services = {}) {
   const ids = options.ids ? new Set(Array.isArray(options.ids) ? options.ids : String(options.ids).split(',')) : null;
   const filtered = new Set((await readLines(path.join(cfg.dataDir, 'filtered-out.jsonl'))).map((x) => x.id));
   const deduped = new Set((await readLines(path.join(cfg.dataDir, 'dedup-merged.jsonl'))).map((x) => x.id));
-  let excludedFiltered = 0, excludedDeduped = 0;
+  let excludedFiltered = 0,
+    excludedDeduped = 0;
   for (const p of base) {
     if (ids && !ids.has(p.id)) continue;
     if (!ids && !options.includeFiltered && !pluginIds.has(p.id)) {
-      if (filtered.has(p.id)) { excludedFiltered++; continue; }
-      if (deduped.has(p.id)) { excludedDeduped++; continue; }
+      if (filtered.has(p.id)) {
+        excludedFiltered++;
+        continue;
+      }
+      if (deduped.has(p.id)) {
+        excludedDeduped++;
+        continue;
+      }
     }
     const text = await readme(cfg, p);
-    const fingerprint = fp(text || `${p.description || ''}${p.name || ''}`, p.version);
+    const fullHash = text && readmeHash(cfg.dataDir, p.readme_path);
+    const fingerprint = fullHash
+      ? fullHash + '|' + (p.version || '')
+      : fp(text || `${p.description || ''}${p.name || ''}`, p.version);
     const old = existing.get(p.id);
     if (first && old?.summary) saved[p.id] = fingerprint;
     const current = { ...p, readme: text.slice(0, 1500), fingerprint, summary_source: text ? 'readme' : 'metadata' };
@@ -100,7 +102,8 @@ INPUT_JSON:${JSON.stringify({ categories: cats, items: items.map(({ id, name, de
   if (options.dryRun)
     return {
       status: 'dry-run',
-      excludedFiltered, excludedDeduped,
+      excludedFiltered,
+      excludedDeduped,
       changed: selected.length,
       total: chosen.length,
       batches: batches.length,
@@ -127,7 +130,11 @@ INPUT_JSON:${JSON.stringify({ categories: cats, items: items.map(({ id, name, de
   const manifest = await readJson(path.join(dir, 'manifest.json'), null);
   if (manifest) {
     batches.length = 0;
-    batches.push(...manifest.batches.map((batch) => batch.filter((item) => overlayFingerprints.get(item.id) !== item.fingerprint)).filter((batch) => batch.length));
+    batches.push(
+      ...manifest.batches
+        .map((batch) => batch.filter((item) => overlayFingerprints.get(item.id) !== item.fingerprint))
+        .filter((batch) => batch.length),
+    );
   } else await json(path.join(dir, 'manifest.json'), { batches, categories: cats });
   const useCats = manifest?.categories || cats;
   const budget = await new Budget(cfg, options.budget).init();
@@ -167,7 +174,12 @@ INPUT_JSON:${JSON.stringify({ categories: cats, items: items.map(({ id, name, de
         maxTokens: cfg.maxOutputTokens,
         signal: options.signal,
       });
-      await budget.record(result.usage, { runId, backend: backendName, model: result.model, provider: result.provider });
+      await budget.record(result.usage, {
+        runId,
+        backend: backendName,
+        model: result.model,
+        provider: result.provider,
+      });
       for (const k of Object.keys(progress.usage))
         progress.usage[k] +=
           result.usage?.[k] ??
@@ -253,7 +265,13 @@ INPUT_JSON:${JSON.stringify({ categories: cats, items: items.map(({ id, name, de
     progress.error = stopped.message;
     progress.stopReason = stopped.code === 'BUDGET_EXCEEDED' ? 'budget' : `provider:${stopped.code}`;
   }
-  progress.budget = { used: budget.used.totalTokens, mock: budget.used.mock.totalTokens, backend: backendName, limit: cfg.budgetTokens, runLimit: budget.limit };
+  progress.budget = {
+    used: budget.used.totalTokens,
+    mock: budget.used.mock.totalTokens,
+    backend: backendName,
+    limit: cfg.budgetTokens,
+    runLimit: budget.limit,
+  };
   await save();
   return progress;
 }

@@ -86,6 +86,72 @@ ${atlasOpenInfo(config)}`,
         }),
       ),
     ),
+    wrap(
+      'tree',
+      '查看树',
+      { node: field('string', '节点或关键词'), depth: field('integer', '深度'), caps: field('boolean', '显示能力') },
+      (a) => p.tree(a),
+    ),
+    wrap('tree_find', '查找树节点', { q: field('string', '关键词', true) }, (a) => p.treeFind(a.q)),
+    wrap(
+      'tree_sync',
+      '预演或执行树同步',
+      {
+        apply: common.apply,
+        dry_run: common.dry_run,
+        allow_production: field('boolean', '允许生产数据'),
+        limit: common.limit,
+      },
+      (a) => p.treeSync({ ...opts(a), allowProduction: a.allow_production }),
+    ),
+    wrap(
+      'tree_rollback',
+      '恢复树备份',
+      { stamp: field('string', '备份时间戳'), apply: common.apply, dry_run: common.dry_run },
+      async (a) => {
+        if (!a.apply || a.dry_run) {
+          const { history } = await p.treeHistory();
+          const entry = a.stamp
+            ? history.find((x) => x.stamp === a.stamp && !x.rollback)
+            : [...history].reverse().find((x) => !x.rollback);
+          return { text: entry ? `dry-run：将恢复树备份 ${entry.stamp}` : 'dry-run：找不到树备份' };
+        }
+        return p.treeRollback(a);
+      },
+    ),
+    wrap(
+      'families',
+      '查看分叉族',
+      { branch: field('string', '分支 ID'), stale: field('boolean', '只看过期计划') },
+      (a) => p.families(a),
+    ),
+    wrap(
+      'plan',
+      '生成融合计划',
+      {
+        id: field('string', '族、分支或插件 ID', true),
+        refresh: field('boolean', '刷新'),
+        dry_run: common.dry_run,
+        apply: common.apply,
+        backend: common.backend,
+        budget: common.budget,
+      },
+      (a) => p.plan({ ...a, dryRun: !!a.dry_run || !a.apply }),
+    ),
+    wrap(
+      'plans_refresh',
+      '刷新过期计划',
+      {
+        limit: common.limit,
+        concurrency: common.concurrency,
+        dry_run: common.dry_run,
+        apply: common.apply,
+        backend: common.backend,
+        budget: common.budget,
+        resume: common.resume,
+      },
+      (a) => p.plansRefresh({ ...a, dryRun: !!a.dry_run || !a.apply }),
+    ),
     wrap('pipeline_status', '查看流水线进度和预算', {}, () => p.status()),
     wrap(
       'compare',

@@ -21,8 +21,12 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // client/src/index.jsx
 var index_exports = {};
 __export(index_exports, {
+  CapabilityCard: () => CapabilityCard,
+  EmptyState: () => EmptyState,
+  TreeView: () => TreeView,
   apply: () => apply,
-  inject: () => inject
+  inject: () => inject,
+  styles: () => styles
 });
 module.exports = __toCommonJS(index_exports);
 var import_react = require("react");
@@ -49,19 +53,18 @@ function apply(ctx) {
   window.__pluginAtlasOpen = () => ctx.sidebarRight.openTab("plugin-atlas");
 }
 var defaultBase = "http://127.0.0.1:4380";
-var list = (value) => Array.isArray(value) ? value : [];
-var text = (value) => typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);
+var list = (x) => Array.isArray(x) ? x : [];
+var text = (x) => typeof x === "string" ? x : x == null ? "" : JSON.stringify(x);
 async function api(base, path) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1e4);
+  const c = new AbortController(), t = setTimeout(() => c.abort(), 3e4);
   try {
-    const response = await fetch(base.replace(/\/+$/, "") + path, { signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    throw new Error(error.name === "AbortError" ? "\u8BF7\u6C42\u8D85\u65F6\uFF0810 \u79D2\uFF09" : error.message);
+    const r = await fetch(base.replace(/\/+$/, "") + path, { signal: c.signal });
+    if (!r.ok) throw Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch (e) {
+    throw Error(e.name === "AbortError" ? "\u8BF7\u6C42\u8D85\u65F6\uFF0830 \u79D2\uFF09" : e.message);
   } finally {
-    clearTimeout(timer);
+    clearTimeout(t);
   }
 }
 function initialBase() {
@@ -71,25 +74,178 @@ function initialBase() {
     return defaultBase;
   }
 }
+function Icon({ name }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    "svg",
+    {
+      "aria-hidden": "true",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "1.5",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      children: name === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "12", cy: "12", r: "3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 3h-4l-.4 3a7 7 0 0 0-1.7 1L6.1 6l-2 3.5 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 3h4l.4-3a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1Z" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: name === "down" ? "m6 9 6 6 6-6" : name === "back" ? "m15 18-6-6 6-6" : "m9 6 6 6-6 6" })
+    }
+  );
+}
+var styles = `
+.atlas-root{--bg:light-dark(#fff,#1c2225);--surface:light-dark(#f2f5f4,#273033);--text:light-dark(#202b2d,#edf4f2);--muted:light-dark(#536461,#b7c8c3);--line:light-dark(#ccd8d4,#465854);--accent:light-dark(#086e61,#79d8c4);--selected:light-dark(#dcefeb,#304b44);--ui:light-dark(#e1edf6,#263e4c);--tools:light-dark(#f4ead7,#493d29);--other:light-dark(#ecece6,#393e37);background:var(--bg);color:var(--text);font-family:var(--dsh-font-family-text,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif);font-size:var(--dsh-content-font-size,13px);line-height:1.45;height:100%;min-width:0;overflow:auto;padding:12px;box-sizing:border-box;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;scrollbar-color:var(--line) transparent;caret-color:var(--accent)}
+.atlas-root *{box-sizing:border-box}.atlas-root ::selection{background:var(--selected)}.atlas-root button,.atlas-root input,.atlas-root select{font:inherit;color:inherit;min-width:0}.atlas-root button,.atlas-root input:not([type=checkbox]),.atlas-root select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;min-height:32px}.atlas-root button{cursor:pointer;transition:background-color 150ms ease-out,color 150ms ease-out}.atlas-root button:hover{background:var(--surface)}.atlas-root button:active{background:var(--selected)}.atlas-root button:disabled{opacity:.55;cursor:not-allowed}.atlas-root :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.atlas-root input::placeholder{color:var(--muted);opacity:1}.atlas-root svg{width:16px;height:16px;flex:none}.atlas-root h2,.atlas-root h3,.atlas-root h4{line-height:1.3;margin:20px 0 8px}.atlas-root h2{font-size:16px}.atlas-root h3{font-size:14px}.atlas-root h4{font-size:13px}.atlas-root p{margin:8px 0}.atlas-root small,.atlas-muted{color:var(--muted)}.atlas-head{display:flex;align-items:center;gap:8px;min-width:0}.atlas-head strong{font-size:16px;white-space:nowrap}.atlas-head-status{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;font-size:12px}.atlas-count{margin-left:auto;white-space:nowrap;font-size:12px;color:var(--muted)}.atlas-dot{width:7px;height:7px;flex:none;border-radius:50%;background:light-dark(#9a5900,#f3c16f)}.atlas-dot.ready{background:light-dark(#08745c,#79d8b3)}.atlas-dot.offline{background:light-dark(#aa3535,#ffaaaa)}.atlas-icon-button{display:grid;place-items:center;padding:5px!important}.atlas-settings,.atlas-form{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.atlas-form input,.atlas-settings input{flex:1 1 130px}.atlas-tabs{display:flex;background:var(--surface);border-radius:8px;padding:3px;gap:3px;margin:16px 0}.atlas-tabs button{flex:1;border:0;background:transparent;min-width:0}.atlas-tabs button[aria-pressed=true]{background:var(--bg);color:var(--accent);font-weight:700}.atlas-chart-row{display:flex;align-items:center;gap:8px;height:24px;width:100%;text-align:left;border:0!important;padding:0 4px!important;min-height:0!important}.atlas-chart-label{flex:0 1 104px;min-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-chart-track{flex:1;min-width:0}.atlas-chart-bar{height:8px;border-radius:4px;background:var(--accent);opacity:.7}.atlas-chart-count{width:40px;text-align:right}.atlas-card{border:1px solid var(--line);border-radius:10px;padding:12px;margin:16px 0;min-width:0}.atlas-card h3:first-child{margin-top:0}.atlas-tree-row{display:flex;align-items:center;min-width:0;border-radius:6px}.atlas-tree-row.selected{background:var(--selected)}.atlas-tree-toggle{border:0!important;background:transparent!important;padding:4px!important;min-height:28px!important;display:grid;place-items:center}.atlas-tree-spacer{width:26px;flex:none}.atlas-tree-select{border:0!important;background:transparent!important;display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;padding:4px!important;min-height:28px!important}.atlas-tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-badge{display:inline-block;border-radius:4px;background:var(--other);padding:1px 5px;font-size:12px;line-height:1.5}.atlas-badge.ui{background:var(--ui)}.atlas-badge.tools{background:var(--tools)}.atlas-cap-list{display:flex;flex-wrap:wrap;gap:4px}.atlas-cap-group{margin-top:12px}.atlas-cap-group h4{margin:0 0 5px}.atlas-more{margin-top:5px}.atlas-family{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}.atlas-family h4{margin:0 0 6px}.atlas-code,.atlas-root pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.atlas-code{background:var(--surface);padding:8px;border-radius:6px;margin:8px 0}.atlas-row{display:block;width:100%;height:auto;text-align:left;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;padding:10px 4px!important}.atlas-snippet{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);margin-top:4px}.atlas-error{color:light-dark(#9d2828,#ffb5b5)}.atlas-root a{color:var(--accent);text-underline-offset:3px}.atlas-readme{max-height:240px;overflow:auto}.atlas-back{display:flex;align-items:center;gap:4px}.atlas-empty{padding:16px 0;color:var(--muted)}.atlas-skeleton span{display:block;height:12px;background:var(--surface);border-radius:4px;margin:12px 0}.atlas-skeleton span:nth-child(2){width:75%}.atlas-skeleton span:nth-child(3){width:50%}.atlas-find-results{border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto}.atlas-find-results button{border:0;border-radius:0;width:100%;text-align:left}.atlas-find-results small{display:block}.atlas-root details summary{cursor:pointer}.atlas-root label{display:block;margin:8px 0}@media(max-width:390px){.atlas-root{padding:10px}.atlas-head{gap:5px}.atlas-head strong{font-size:14px}.atlas-tree-row .atlas-badge{font-size:11px}}@media(prefers-reduced-motion:reduce){.atlas-root *{scroll-behavior:auto!important;transition:none!important}}`;
+function EmptyState({ children }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-empty", children });
+}
+function Skeleton() {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-skeleton", role: "status", "aria-label": "\u52A0\u8F7D\u4E2D", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {})
+  ] });
+}
+function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFamilyRetry }) {
+  const [more, setMore] = (0, import_react.useState)({});
+  if (!node) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u9009\u62E9\u6811\u4E2D\u7684\u8282\u70B9\uFF0C\u67E5\u770B\u80FD\u529B\u4E0E\u5206\u53C9\u65CF\u3002" });
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "atlas-card", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", { children: [
+      node.label || node.id,
+      " \xB7 \u80FD\u529B"
+    ] }),
+    !caps ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : caps.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-error", children: "\u80FD\u529B\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5\u3002" }) : [
+      ["ui", "UI"],
+      ["tools", "Tools"],
+      ["other", "\u5176\u4ED6"],
+      ["unique", "\u72EC\u6709"],
+      ["missing", "\u7F3A\u5931"]
+    ].map(([key, label]) => {
+      const entries = list(caps[key]);
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-cap-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", { children: [
+          label,
+          " ",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: entries.length })
+        ] }),
+        entries.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-cap-list", children: entries.slice(0, more[key] ? void 0 : 8).map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge " + key, children: text(c.label || c.capability || c) }, i)) }),
+          entries.length > 8 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "atlas-more", onClick: () => setMore((old) => ({ ...old, [key]: !old[key] })), children: more[key] ? "\u6536\u8D77" : `\u5C55\u5F00\u66F4\u591A\uFF08${entries.length - 8}\uFF09` })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u6682\u65E0" })
+      ] }, key);
+    }),
+    familyError ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-family", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { className: "atlas-error", children: [
+        "\u52A0\u8F7D\u5206\u53C9\u65CF\uFF1A",
+        familyError
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: onFamilyRetry, children: "\u91CD\u8BD5" })
+    ] }) : families === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : families.length ? families.map((f) => {
+      const record = plans[f.id], plan = record?.plan, command = record?.command || `/atlas plan ${f.id} --dry-run`;
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-family", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", { children: [
+          "\u5206\u53C9\u65CF ",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: f.id })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+          "\u4EE3\u8868\u8282\u70B9\uFF1A",
+          list(f.representatives).map((r) => r.id).join("\u3001") || "\u6682\u65E0"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+          "\u8BA1\u5212\u72B6\u6001\uFF1A",
+          f.planStatus || "\u65E0"
+        ] }),
+        record === void 0 && f.planStatus !== "\u65E0" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u52A0\u8F7D\u8BA1\u5212\u4E2D" }) : plan ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+            "\u8BA1\u5212\u8981\u70B9\uFF1A",
+            text(plan.summary) || text(plan.base && `\u57FA\u5E95\uFF1A${plan.base}`) || "\u6682\u65E0\u6458\u8981"
+          ] }),
+          list(plan.steps).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { children: list(plan.steps).map((s, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: text(s) }, i)) })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-code", children: command }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => onCopy(command), children: "\u590D\u5236\u751F\u6210\u8BA1\u5212\u547D\u4EE4" })
+        ] })
+      ] }, f.id);
+    }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-muted", children: "\u6B64\u8282\u70B9\u6682\u65E0\u5206\u53C9\u65CF\u3002" })
+  ] });
+}
+function TreeView({ nodes, expanded, selected, caps, onToggle, onSelect, refs }) {
+  const byParent = /* @__PURE__ */ new Map(), ids = new Set(nodes.map((n) => n.id));
+  for (const n of nodes) {
+    const parent = n.parent !== n.id && ids.has(n.parent) ? n.parent : null;
+    if (!byParent.has(parent)) byParent.set(parent, []);
+    byParent.get(parent).push(n);
+  }
+  function render(n, depth, seen) {
+    if (seen.has(n.id)) return null;
+    const children = byParent.get(n.id) || [], next = new Set(seen).add(n.id), c = n.badges || caps[n.id];
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "div",
+        {
+          className: "atlas-tree-row" + (selected === n.id ? " selected" : ""),
+          ref: (el) => {
+            refs.current[n.id] = el;
+          },
+          style: { paddingLeft: Math.min(depth * 12, 72) },
+          children: [
+            children.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "button",
+              {
+                className: "atlas-tree-toggle",
+                "aria-label": (expanded[n.id] ? "\u6298\u53E0" : "\u5C55\u5F00") + n.label,
+                "aria-expanded": !!expanded[n.id],
+                onClick: () => onToggle(n),
+                children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { name: expanded[n.id] ? "down" : "right" })
+              }
+            ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-tree-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-tree-select", onClick: () => onSelect(n), "aria-pressed": selected === n.id, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-tree-label", title: n.label, children: n.label || n.id }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { title: "\u63D2\u4EF6\u6570", children: n.plugin_count ?? (n.type === "plugin" ? 1 : 0) }),
+              c && !c.error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "atlas-badge ui", title: "\u754C\u9762\u80FD\u529B\u603B\u6570", children: [
+                  "ui ",
+                  typeof c.ui === "number" ? c.ui : list(c.ui).length
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "atlas-badge tools", title: "\u5DE5\u5177\u80FD\u529B\u603B\u6570", children: [
+                  "tools ",
+                  typeof c.tools === "number" ? c.tools : list(c.tools).length
+                ] })
+              ] })
+            ] })
+          ]
+        }
+      ),
+      expanded[n.id] && children.map((child) => render(child, depth + 1, next))
+    ] }, n.id);
+  }
+  return nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: (byParent.get(null) || []).map((n) => render(n, 0, /* @__PURE__ */ new Set())) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u6682\u65E0\u5206\u652F\u6811\uFF0C\u8BF7\u68C0\u67E5\u6570\u636E\u6216\u91CD\u8BD5\u3002" });
+}
 function AtlasBody({ useTabInfo }) {
   const { tab } = useTabInfo();
-  const [base, setBase] = (0, import_react.useState)(initialBase), [draft, setDraft] = (0, import_react.useState)(base);
-  const [status, setStatus] = (0, import_react.useState)(null), [statusError, setStatusError] = (0, import_react.useState)(""), [retry, setRetry] = (0, import_react.useState)(0);
-  const [tree, setTree] = (0, import_react.useState)([]), [expanded, setExpanded] = (0, import_react.useState)({}), [pages, setPages] = (0, import_react.useState)({});
-  const [error, setError] = (0, import_react.useState)(""), [query, setQuery] = (0, import_react.useState)(""), [mode, setMode] = (0, import_react.useState)("hybrid"), [github, setGithub] = (0, import_react.useState)(false);
-  const [results, setResults] = (0, import_react.useState)(null), [detail, setDetail] = (0, import_react.useState)(null);
-  const [settings, setSettings] = (0, import_react.useState)(false), [copied, setCopied] = (0, import_react.useState)(false);
-  const refs = (0, import_react.useRef)({}), timer = (0, import_react.useRef)(null);
+  const [base, setBase] = (0, import_react.useState)(initialBase), [draft, setDraft] = (0, import_react.useState)(base), [retry, setRetry] = (0, import_react.useState)(0), [status, setStatus] = (0, import_react.useState)(null), [statusError, setStatusError] = (0, import_react.useState)(""), [error, setError] = (0, import_react.useState)("");
+  const [view, setView] = (0, import_react.useState)("\u6982\u89C8"), [settings, setSettings] = (0, import_react.useState)(false), [tree, setTree] = (0, import_react.useState)(null), [expanded, setExpanded] = (0, import_react.useState)({}), [selected, setSelected] = (0, import_react.useState)(null), [caps, setCaps] = (0, import_react.useState)({}), [families, setFamilies] = (0, import_react.useState)(null), [familySummary, setFamilySummary] = (0, import_react.useState)(null), [summaryError, setSummaryError] = (0, import_react.useState)(""), [summaryRetry, setSummaryRetry] = (0, import_react.useState)(0), [familyError, setFamilyError] = (0, import_react.useState)(""), [familyRetry, setFamilyRetry] = (0, import_react.useState)(0), [plans, setPlans] = (0, import_react.useState)({});
+  const [locate, setLocate] = (0, import_react.useState)(""), [matches, setMatches] = (0, import_react.useState)(null), [query, setQuery] = (0, import_react.useState)(""), [mode, setMode] = (0, import_react.useState)("hybrid"), [github, setGithub] = (0, import_react.useState)(false), [results, setResults] = (0, import_react.useState)(null), [searching, setSearching] = (0, import_react.useState)(false), [detail, setDetail] = (0, import_react.useState)(null), [detailLoading, setDetailLoading] = (0, import_react.useState)(false), [copied, setCopied] = (0, import_react.useState)("");
+  const refs = (0, import_react.useRef)({}), timer = (0, import_react.useRef)(null), pending = (0, import_react.useRef)(/* @__PURE__ */ new Set()), generation = (0, import_react.useRef)(0);
   (0, import_react.useEffect)(() => () => clearTimeout(timer.current), []);
-  const filter = github ? "1" : "0";
+  (0, import_react.useEffect)(() => {
+    if (!status?.loading || tab.visible === false) return;
+    const id = setTimeout(() => setRetry((x) => x + 1), 3e3);
+    return () => clearTimeout(id);
+  }, [status, tab.visible]);
   (0, import_react.useEffect)(() => {
     if (tab.visible === false) return;
     let active = true;
+    generation.current++;
+    pending.current.clear();
     setStatus(null);
     setStatusError("");
     setError("");
-    setTree([]);
-    setPages({});
+    setTree(null);
+    setCaps({});
+    setExpanded({});
+    setSelected(null);
+    setFamilies(null);
+    setPlans({});
     setDetail(null);
     setResults(null);
     api(base, "/api/status").then((s) => {
@@ -97,61 +253,158 @@ function AtlasBody({ useTabInfo }) {
     }).catch((e) => {
       if (active) setStatusError(e.message);
     });
-    api(base, "/api/tree?include_github_only=" + filter).then((t) => {
-      if (active) setTree(list(t.nodes));
+    api(base, "/api/tree?include_github_only=" + (github ? "1" : "0")).then((t) => {
+      if (active) {
+        const nodes = list(t.nodes);
+        setTree(nodes);
+        setExpanded(
+          Object.fromEntries(nodes.filter((n2) => !n2.parent || n2.type === "category").map((n2) => [n2.id, true]))
+        );
+      }
     }).catch((e) => {
-      if (active) setError("\u56FE\u8C31\uFF1A" + e.message);
+      if (active) {
+        setTree([]);
+        setError("\u52A0\u8F7D\u5206\u652F\u6811\uFF1A" + e.message);
+      }
     });
     return () => {
       active = false;
     };
-  }, [base, retry, filter, tab.visible]);
-  async function loadPage(node, more = false) {
-    const previous = pages[node.id];
-    const params = new URLSearchParams({
-      node: node.id,
-      limit: "20",
-      offset: String(more ? previous.offset + previous.limit : 0),
-      include_github_only: filter
+  }, [base, retry, github, tab.visible]);
+  (0, import_react.useEffect)(() => {
+    if (tab.visible === false) return;
+    let active = true;
+    setFamilySummary(null);
+    setSummaryError("");
+    api(base, "/api/families?summary=1").then((f) => {
+      if (active) setFamilySummary(f);
+    }).catch((e) => {
+      if (active) setSummaryError(e.message);
     });
-    try {
-      setError("");
-      const page = await api(base, "/api/children?" + params);
-      setPages((old) => ({
-        ...old,
-        [node.id]: { ...page, nodes: more ? [...old[node.id].nodes, ...page.nodes] : page.nodes }
-      }));
-    } catch (e) {
-      setError("\u52A0\u8F7D\u63D2\u4EF6\uFF1A" + e.message);
+    return () => {
+      active = false;
+    };
+  }, [base, retry, summaryRetry, tab.visible]);
+  (0, import_react.useEffect)(() => {
+    if (!selected || !tree) return;
+    let node = selected, seen = /* @__PURE__ */ new Set();
+    while (node && node.type !== "branch" && !seen.has(node.id)) {
+      seen.add(node.id);
+      node = tree.find((n2) => n2.id === node.parent);
+    }
+    const branch = node?.id || selected.id;
+    let active = true;
+    setFamilies(null);
+    setFamilyError("");
+    setPlans({});
+    api(base, "/api/families?" + new URLSearchParams({ branch })).then((f) => {
+      if (!active) return;
+      const items = list(f.families);
+      setFamilies(items);
+      items.forEach(
+        (item) => api(base, "/api/plan?" + new URLSearchParams({ id: item.id })).then((p2) => {
+          if (active) setPlans((old) => ({ ...old, [item.id]: p2 }));
+        }).catch((e) => {
+          if (active) setFamilyError("\u52A0\u8F7D\u8BA1\u5212\uFF1A" + e.message);
+        })
+      );
+    }).catch((e) => {
+      if (active) setFamilyError(e.message);
+    });
+    return () => {
+      active = false;
+    };
+  }, [selected, tree, base, familyRetry]);
+  function toggle(n2) {
+    setExpanded((old) => ({ ...old, [n2.id]: !old[n2.id] }));
+  }
+  function choose(n2) {
+    setSelected(n2);
+    if ((!caps[n2.id] || caps[n2.id].error) && !pending.current.has(n2.id)) {
+      const gen = generation.current;
+      pending.current.add(n2.id);
+      api(base, "/api/tree-node?" + new URLSearchParams({ id: n2.id })).then((value) => {
+        if (gen === generation.current) setCaps((old) => ({ ...old, [n2.id]: value }));
+      }).catch((e) => {
+        if (gen === generation.current) setError("\u52A0\u8F7D\u80FD\u529B\uFF1A" + e.message);
+      }).finally(() => pending.current.delete(n2.id));
     }
   }
-  function toggle(node) {
-    const open = !expanded[node.id];
-    setExpanded((old) => ({ ...old, [node.id]: open }));
-    if (open && node.type === "branch" && !pages[node.id]) void loadPage(node);
-  }
-  async function select(id) {
+  async function find(e) {
+    e.preventDefault();
+    if (!locate.trim()) {
+      setMatches([]);
+      return;
+    }
     try {
       setError("");
-      setDetail(null);
-      setDetail(await api(base, "/api/node/" + encodeURIComponent(id)));
-    } catch (e) {
-      setError("\u8BE6\u60C5\uFF1A" + e.message);
+      const r = await api(base, "/api/tree-find?" + new URLSearchParams({ q: locate.trim(), limit: "20" }));
+      setMatches(list(r.matches));
+    } catch (err) {
+      setError("\u5B9A\u4F4D\uFF1A" + err.message);
     }
   }
-  async function search(event) {
-    event.preventDefault();
+  function locateMatch(match) {
+    const path = list(match.path), additions = path.map((p2, i) => ({
+      ...p2,
+      parent: i ? path[i - 1].id : null,
+      type: i === path.length - 1 ? match.type : "branch"
+    })), target = tree?.find((n2) => n2.id === match.id) || additions[additions.length - 1];
+    setTree((old) => [...old || [], ...additions.filter((n2) => !(old || []).some((x) => x.id === n2.id))]);
+    setExpanded((old) => ({ ...old, ...Object.fromEntries(path.slice(0, -1).map((p2) => [p2.id, true])) }));
+    setMatches(null);
+    if (target) choose(target);
+    requestAnimationFrame(() => refs.current[match.id]?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+  }
+  async function search(e) {
+    e.preventDefault();
+    setSearching(true);
+    setResults(null);
+    setError("");
     try {
-      setError("");
-      setResults(null);
-      const p2 = new URLSearchParams({ q: query, mode, limit: "20", include_github_only: filter });
-      setResults(await api(base, "/api/search?" + p2));
-    } catch (e) {
-      setError("\u641C\u7D22\uFF1A" + e.message);
+      setResults(
+        await api(
+          base,
+          "/api/search?" + new URLSearchParams({ q: query, mode, limit: "20", include_github_only: github ? "1" : "0" })
+        )
+      );
+    } catch (err) {
+      setError("\u641C\u7D22\uFF1A" + err.message);
+    } finally {
+      setSearching(false);
     }
   }
-  function saveBase(event) {
-    event.preventDefault();
+  async function selectPlugin(id, resolve = false) {
+    setDetailLoading(true);
+    setDetail(null);
+    setError("");
+    try {
+      if (resolve) {
+        const found = await api(
+          base,
+          "/api/search?" + new URLSearchParams({ q: id, mode: "fulltext", limit: "20", include_github_only: github ? "1" : "0" })
+        );
+        id = list(found.results).find((r) => r.id === id || r.node_id === id)?.node_id || id;
+      }
+      setDetail(await api(base, "/api/node/" + encodeURIComponent(id) + "?lite=1"));
+    } catch (err) {
+      setError("\u52A0\u8F7D\u8BE6\u60C5\uFF1A" + err.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+  async function copy(value) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(value);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(""), 1500);
+    } catch (e) {
+      setError("\u590D\u5236\u5931\u8D25\uFF1A" + e.message);
+    }
+  }
+  function saveBase(e) {
+    e.preventDefault();
     const next = draft.trim().replace(/\/+$/, "") || defaultBase;
     try {
       localStorage.setItem("plugin-atlas.base", next);
@@ -160,191 +413,225 @@ function AtlasBody({ useTabInfo }) {
     setDraft(next);
     setBase(next);
     setRetry((x) => x + 1);
+    setSettings(false);
   }
-  function openCategory(node) {
-    const opened = { [node.id]: true };
-    let parent = tree.find((n2) => n2.id === node.parent);
-    while (parent) {
-      opened[parent.id] = true;
-      parent = tree.find((n2) => n2.id === parent.parent);
-    }
-    setExpanded((old) => ({ ...old, ...opened }));
-    requestAnimationFrame(() => refs.current[node.id]?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-  }
-  async function selectPlugin(id) {
-    const known = Object.values(pages).flatMap((page) => list(page.nodes)).find((n2) => n2.plugin_id === id || n2.id === id);
-    if (known) return select(known.id);
-    try {
-      const found = await api(base, "/api/search?" + new URLSearchParams({ q: id, mode: "fulltext", limit: "20", include_github_only: filter }));
-      const match = list(found.results).find((r) => r.id === id || r.node_id === id);
-      await select(match?.node_id || id);
-    } catch (e) {
-      setError("\u8BE6\u60C5\uFF1A" + e.message);
-    }
-  }
-  async function copyInstall() {
-    try {
-      await navigator.clipboard.writeText(text(install));
-      setCopied(true);
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1500);
-    } catch (e) {
-      setError("\u590D\u5236\uFF1A" + e.message);
-    }
-  }
-  function renderNode(node, depth = 0) {
-    const children = tree.filter((n2) => n2.parent === node.id && n2.id !== node.id);
-    const page = pages[node.id];
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { ref: node.type === "category" ? (el) => {
-      refs.current[node.id] = el;
-    } : void 0, style: { marginLeft: depth ? 14 : 0 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-row", onClick: () => toggle(node), "aria-expanded": !!expanded[node.id], children: [
-        expanded[node.id] ? "\u25BE" : "\u25B8",
-        " ",
-        node.label,
-        " ",
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
-          "(",
-          node.plugin_count ?? 0,
-          ")"
-        ] })
-      ] }),
-      expanded[node.id] && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        children.map((n2) => renderNode(n2, depth + 1)),
-        node.type === "branch" && (page ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginLeft: 14 }, children: [
-          list(page.nodes).filter((n2) => n2.type === "plugin").map((n2) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-row", onClick: () => select(n2.id), children: [
-            "\xB7 ",
-            n2.label
-          ] }, n2.id)),
-          page.has_more && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => loadPage(node, true), children: "\u52A0\u8F7D\u66F4\u591A" })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u52A0\u8F7D\u4E2D\u2026" }))
-      ] })
-    ] }, node.id);
-  }
-  const roots = tree.filter(
-    (n2) => n2.type === "category" && !tree.some((p2) => p2.id === n2.parent && p2.type === "category")
-  );
-  const p = detail?.plugin, n = detail?.node;
-  const install = p?.install_command || p?.install || (p?.package ? `npm install ${p.package}` : "");
-  const provided = list(detail?.branch_capabilities?.union).filter((u) => list(u.provided_by).includes(p?.id));
-  const categories = tree.filter((node) => node.type === "category").sort((a, b) => (b.plugin_count ?? 0) - (a.plugin_count ?? 0)).slice(0, 12);
-  const maxCount = Math.max(1, ...categories.map((node) => node.plugin_count ?? 0));
-  const best = [...new Set(list(detail?.branch_capabilities?.union).map((u) => u.best_impl).filter((id) => id && id !== p?.id))];
-  const source = p?.summary_source || n?.summary_source;
+  const categories = list(tree).filter((n2) => n2.type === "category").sort((a, b) => (b.plugin_count || 0) - (a.plugin_count || 0)).slice(0, 12), max = Math.max(1, ...categories.map((n2) => n2.plugin_count || 0));
+  const related = families;
+  const p = detail?.plugin, n = detail?.node, install = p?.install_command || p?.install || (p?.package ? `npm install ${p.package}` : ""), best = [
+    ...new Set(
+      list(detail?.branch_capabilities?.union).map((u) => u.best_impl).filter((id) => id && id !== p?.id)
+    )
+  ];
   const statusKind = statusError ? "offline" : !status || status.loading ? "loading" : "ready";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-root", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: `.atlas-root{padding:12px;color:inherit;font:inherit;overflow:auto;height:100%;min-width:0;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word}.atlas-root *{box-sizing:border-box}.atlas-root button,.atlas-root input,.atlas-root select{font:inherit;color:inherit;background:transparent;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:5px;min-width:0}.atlas-root button,.atlas-root input:not([type=checkbox]),.atlas-root select{height:28px;padding:3px 7px}.atlas-root button{cursor:pointer}.atlas-root button:disabled{opacity:.5;cursor:default}.atlas-root input[type=text]{flex:1;min-width:70px}.atlas-root form{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.atlas-root section,.atlas-status{border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:8px;padding:10px 12px;margin-bottom:12px;min-width:0}.atlas-root h2,.atlas-root h3{font-size:14px;font-weight:700;margin:10px 0 8px}.atlas-root p{margin:8px 0}.atlas-muted,.atlas-root small{opacity:.65}.atlas-status-head{display:flex;align-items:center;gap:7px;min-width:0}.atlas-status-text{flex:1;min-width:0}.atlas-dot{width:8px;height:8px;flex:none;border-radius:50%}.atlas-ready{background:#35a86b}.atlas-loading{background:#e6a23c}.atlas-offline{background:#dc5b5b}.atlas-settings{margin-top:8px}.atlas-row{display:block;text-align:left;border:0!important;width:100%;height:auto!important;min-height:28px;overflow-wrap:anywhere;word-break:break-word}.atlas-result{padding:8px 0!important;border-bottom:1px solid color-mix(in srgb,currentColor 15%,transparent)!important}.atlas-snippet{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;opacity:.65}.atlas-badge{display:inline-block;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:5px;padding:1px 5px;margin:2px 4px 2px 0;font-size:.85em}.atlas-chart{width:100%;margin:4px 0 10px}.atlas-chart-row{display:flex;align-items:center;height:20px;cursor:pointer}.atlas-chart-row:hover,.atlas-chart-row:focus-visible{background:color-mix(in srgb,currentColor 10%,transparent)}.atlas-chart-label{flex:0 0 96px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.atlas-chart-track{flex:1;min-width:0}.atlas-chart-bar{height:8px;border-radius:4px;background:color-mix(in srgb,currentColor 35%,transparent)}.atlas-chart-count{flex:0 0 48px;text-align:right;font-size:11px}.atlas-root pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:6px 0;font-family:monospace}.atlas-readme{max-height:240px;overflow:auto}.atlas-root a{color:inherit}.atlas-error{color:#d86565}.atlas-back{margin-bottom:10px}.atlas-capabilities{display:flex;flex-wrap:wrap;gap:4px}.atlas-root label{display:block;margin:8px 0}` }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-status", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-status-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-dot atlas-" + statusKind }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-status-text", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Plugin Atlas" }),
-          " \xB7 ",
-          statusKind === "offline" ? "\u672A\u8FD0\u884C" : statusKind === "loading" ? "\u52A0\u8F7D\u4E2D" : "\u5C31\u7EEA",
-          statusKind === "ready" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
-            " \xB7 ",
-            status.counts?.plugins ?? 0,
-            " \u4E2A\u63D2\u4EF6 \xB7 ",
-            status.semantic_backend || status.semantic?.label || ""
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", "aria-label": "\u670D\u52A1\u5730\u5740\u8BBE\u7F6E", "aria-expanded": settings, onClick: () => setSettings(!settings), children: "\u2699" })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: styles }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", { className: "atlas-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Plugin Atlas" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "atlas-head-status", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-dot " + statusKind }),
+        statusKind === "ready" ? "\u5C31\u7EEA" : statusKind === "loading" ? "\u52A0\u8F7D\u4E2D" : "\u672A\u542F\u52A8"
       ] }),
-      settings && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { className: "atlas-settings", onSubmit: saveBase, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { type: "text", "aria-label": "\u670D\u52A1\u5730\u5740", value: draft, onChange: (e) => setDraft(e.target.value) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u8BBE\u7F6E\u5730\u5740" })
-      ] }),
-      statusError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-error", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "Plugin Atlas \u670D\u52A1\u672A\u8FD0\u884C\uFF1A\u5728\u4ED3\u5E93\u6839\u76EE\u5F55 bash web/start.sh\uFF0C\u6216\u5728\u5BF9\u8BDD\u91CC\u8FD0\u884C /atlas service start" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: statusError }),
-        " ",
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => setRetry((x) => x + 1), children: "\u91CD\u8BD5" })
-      ] })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-count", children: status?.counts?.plugins != null ? `${status.counts.plugins} \u4E2A\u63D2\u4EF6` : "" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "button",
+        {
+          className: "atlas-icon-button",
+          "aria-label": "\u670D\u52A1\u5730\u5740\u8BBE\u7F6E",
+          "aria-expanded": settings,
+          onClick: () => setSettings(!settings),
+          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { name: "settings" })
+        }
+      )
     ] }),
-    error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-error", role: "alert", children: error }),
-    detail ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "atlas-back", onClick: () => setDetail(null), children: "\u2190 \u8FD4\u56DE" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { children: p?.name || n?.label }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: p?.summary || p?.description || n?.summary }),
-      (p?.github_only || n?.github_only) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", children: "\u4EC5 GitHub" }),
-      (p?.relevance === "suspect" || n?.relevance === "suspect" || p?.suspect_irrelevant || n?.suspect_irrelevant) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", title: p?.relevance_reason || n?.relevance_reason, children: "\u7591\u4F3C\u65E0\u5173" }),
-      source && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "atlas-badge", children: [
-        "\u6458\u8981\u6765\u6E90\uFF1A",
-        { readme: "README", metadata: "\u5143\u6570\u636E", description_fallback: "\u63CF\u8FF0\u9996\u53E5\uFF08\u672A\u7ECF\u6A21\u578B\uFF09" }[source] || source
-      ] }),
-      p && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
-          "\u5E02\u573A\uFF1A",
-          list(p.markets).map(text).join("\u3001") || "\u672A\u77E5"
-        ] }),
-        install && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u5B89\u88C5\u547D\u4EE4" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", { children: text(install) }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: copyInstall, children: copied ? "\u5DF2\u590D\u5236" : "\u590D\u5236" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u80FD\u529B" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-capabilities", children: list(p.capabilities).length ? list(p.capabilities).map((cap, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", children: text(cap) }, i)) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u6682\u65E0" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u6240\u5C5E\u5206\u652F\u80FD\u529B" }),
-        provided.length ? provided.map((u, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
-          u.best_impl === p.id && "\u2605 ",
-          text(u.capability),
-          u.note ? " \xB7 " + text(u.note) : ""
-        ] }, i)) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-muted", children: "\u6682\u65E0\u5339\u914D\u6761\u76EE" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u540C\u5206\u652F\u5176\u4ED6\u6700\u4F73\u5B9E\u73B0" }),
-        best.length ? best.map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-row", onClick: () => selectPlugin(id), children: [
-          "\u2605 ",
-          id
-        ] }, id)) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-muted", children: "\u6682\u65E0" }),
-        p.repo && /^https?:\/\//i.test(p.repo) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", { href: p.repo, target: "_blank", rel: "noopener noreferrer", children: "\u4EE3\u7801\u4ED3\u5E93 \u2197" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "README" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", { className: "atlas-readme", children: detail.readme_markdown ? detail.readme_markdown.slice(0, 2e3) : "\u6682\u65E0 README" })
-      ] })
+    settings && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { className: "atlas-settings", onSubmit: saveBase, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { "aria-label": "\u670D\u52A1\u5730\u5740", value: draft, onChange: (e) => setDraft(e.target.value) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u4FDD\u5B58\u5730\u5740" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", { className: "atlas-tabs", "aria-label": "\u9762\u677F\u89C6\u56FE", children: ["\u6982\u89C8", "\u5206\u652F\u6811", "\u641C\u7D22"].map((v) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "button",
+      {
+        "aria-pressed": view === v,
+        onClick: () => {
+          setView(v);
+          setDetail(null);
+        },
+        children: v
+      },
+      v
+    )) }),
+    statusError ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u670D\u52A1\u672A\u542F\u52A8" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "\u542F\u52A8 Plugin Atlas \u670D\u52A1\u540E\u91CD\u8BD5\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-code", children: "/atlas service start" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => copy("/atlas service start"), children: copied === "/atlas service start" ? "\u5DF2\u590D\u5236" : "\u590D\u5236\u542F\u52A8\u547D\u4EE4" }),
+      " ",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => setRetry((x) => x + 1), children: "\u91CD\u8BD5" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-muted", children: statusError })
     ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u641C\u7D22" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { onSubmit: search, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { type: "text", "aria-label": "\u641C\u7D22\u63D2\u4EF6", placeholder: "\u641C\u7D22\u63D2\u4EF6\u6216\u80FD\u529B", value: query, onChange: (e) => setQuery(e.target.value) }),
+      error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { role: "alert", className: "atlas-error", children: error }),
+      view === "\u6982\u89C8" && (!status || !tree ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u5206\u7C7B\u63D2\u4EF6\u6570\u91CF" }),
+        categories.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: categories.map((node) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "button",
+          {
+            className: "atlas-chart-row",
+            onClick: () => {
+              setView("\u5206\u652F\u6811");
+              choose(node);
+              const opened = { [node.id]: true };
+              let parent = tree.find((x) => x.id === node.parent);
+              const seen = /* @__PURE__ */ new Set([node.id]);
+              while (parent && !seen.has(parent.id)) {
+                seen.add(parent.id);
+                opened[parent.id] = true;
+                parent = tree.find((x) => x.id === parent.parent);
+              }
+              setExpanded((old) => ({ ...old, ...opened }));
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-chart-label", title: node.label, children: node.label }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-chart-track", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                "span",
+                {
+                  className: "atlas-chart-bar",
+                  style: { display: "block", width: (node.plugin_count || 0) / max * 100 + "%" }
+                }
+              ) }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-chart-count", children: node.plugin_count || 0 })
+            ]
+          },
+          node.id
+        )) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u6682\u65E0\u5206\u7C7B\u6570\u636E\uFF0C\u8BF7\u68C0\u67E5\u6570\u636E\u6216\u91CD\u8BD5\u3002" }),
+        status.recent_changes != null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+          "\u6700\u8FD1\u53D8\u5316\uFF1A",
+          text(status.recent_changes)
+        ] }),
+        summaryError ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-family", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { className: "atlas-error", children: [
+            "\u52A0\u8F7D\u5206\u53C9\u65CF\u6982\u89C8\uFF1A",
+            summaryError
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => setSummaryRetry((x) => x + 1), children: "\u91CD\u8BD5" })
+        ] }) : familySummary && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+          "\u5206\u53C9\u65CF\uFF1A",
+          familySummary.computing ? "\u8BA1\u7B97\u4E2D" : familySummary.families,
+          " \xB7 \u8FC7\u671F\u8BA1\u5212\uFF1A",
+          familySummary.stale
+        ] })
+      ] })),
+      view === "\u5206\u652F\u6811" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { className: "atlas-form", onSubmit: find, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              placeholder: "\u5B9A\u4F4D\u8282\u70B9\u6216\u80FD\u529B",
+              "aria-label": "\u5B9A\u4F4D\u8282\u70B9\u6216\u80FD\u529B",
+              value: locate,
+              onChange: (e) => setLocate(e.target.value)
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u5B9A\u4F4D" })
+        ] }),
+        matches && (matches.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-find-results", children: matches.slice(0, 20).map((m) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { onClick: () => locateMatch(m), children: [
+          m.label,
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: list(m.path).map((x) => x.label).join(" / ") })
+        ] }, m.id)) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u6CA1\u6709\u5339\u914D\u8282\u70B9\uFF0C\u8BD5\u8BD5\u5176\u4ED6\u540D\u79F0\u6216\u80FD\u529B\u5173\u952E\u8BCD\u3002" })),
+        tree === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          TreeView,
+          {
+            nodes: tree,
+            expanded,
+            selected: selected?.id,
+            caps,
+            onToggle: toggle,
+            onSelect: choose,
+            refs
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          CapabilityCard,
+          {
+            node: selected,
+            caps: selected && caps[selected.id],
+            families: related ?? null,
+            plans,
+            onCopy: copy,
+            familyError,
+            onFamilyRetry: () => setFamilyRetry((x) => x + 1)
+          },
+          selected?.id || "none"
+        )
+      ] }),
+      view === "\u641C\u7D22" && (detailLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : detail ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-back", onClick: () => setDetail(null), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { name: "back" }),
+          "\u8FD4\u56DE\u641C\u7D22\u7ED3\u679C"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { children: p?.name || n?.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: p?.summary || p?.description || n?.summary }),
+        p?.github_only && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", children: "\u4EC5 GitHub" }),
+        p && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+            "\u5E02\u573A\uFF1A",
+            list(p.markets).map(text).join("\u3001") || "\u672A\u77E5"
+          ] }),
+          install && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u5B89\u88C5\u547D\u4EE4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-code", children: text(install) }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: () => copy(text(install)), children: copied === text(install) ? "\u5DF2\u590D\u5236" : "\u590D\u5236\u5B89\u88C5\u547D\u4EE4" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u80FD\u529B" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-cap-list", children: list(p.capabilities).length ? list(p.capabilities).map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", children: text(c) }, i)) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u6682\u65E0" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u540C\u5206\u652F\u6700\u4F73\u5B9E\u73B0" }),
+          best.length ? best.map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "atlas-row", onClick: () => selectPlugin(id, true), children: id }, id)) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-muted", children: "\u6682\u65E0" }),
+          p.repo && /^https?:\/\//i.test(p.repo) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", { href: p.repo, target: "_blank", rel: "noopener noreferrer", children: "\u6253\u5F00\u4EE3\u7801\u4ED3\u5E93" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-muted", children: "\u8F7B\u91CF\u8BE6\u60C5\u4E0D\u5305\u542B README\uFF0C\u8BF7\u67E5\u770B\u63D2\u4EF6\u4ED3\u5E93\u3002" })
+        ] })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { className: "atlas-form", onSubmit: search, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              placeholder: "\u641C\u7D22\u63D2\u4EF6\u6216\u80FD\u529B",
+              "aria-label": "\u641C\u7D22\u63D2\u4EF6",
+              value: query,
+              onChange: (e) => setQuery(e.target.value)
+            }
+          ),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", { "aria-label": "\u641C\u7D22\u6A21\u5F0F", value: mode, onChange: (e) => setMode(e.target.value), children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "hybrid", children: "\u6DF7\u5408" }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "fulltext", children: "\u5168\u6587" }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "semantic", children: "\u8BED\u4E49" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u641C\u7D22" })
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u641C\u7D22\u63D2\u4EF6" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { type: "checkbox", checked: github, onChange: (e) => setGithub(e.target.checked) }),
           " \u5305\u542B\u4EC5 GitHub"
         ] }),
-        results && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        searching ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : results ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("small", { children: [
             list(results.results).length,
-            " \u6761\u7ED3\u679C \xB7 ",
-            results.semantic?.label
+            " \u6761\u7ED3\u679C ",
+            results.semantic?.label && " \xB7 " + results.semantic.label
           ] }),
-          !list(results.results).length && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "\u6CA1\u6709\u7ED3\u679C" }),
-          list(results.results).map((r, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-row atlas-result", disabled: !r.node_id, onClick: () => select(r.node_id), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: r.title }),
-            " ",
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", children: r.kind }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-snippet", children: r.snippet })
-          ] }, r.id + i))
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { children: "\u56FE\u8C31" }),
-        categories.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-chart", "aria-label": "\u5206\u7C7B\u63D2\u4EF6\u6570\u91CF\u6392\u884C", children: categories.map((node) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-chart-row", role: "button", tabIndex: 0, "aria-label": node.label + "\uFF0C" + (node.plugin_count ?? 0) + " \u4E2A\u63D2\u4EF6", title: node.label + "\uFF1A" + (node.plugin_count ?? 0), onClick: () => openCategory(node), onKeyDown: (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            openCategory(node);
-          }
-        }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-chart-label", children: node.label }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-chart-track", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-chart-bar", style: { width: (node.plugin_count ?? 0) / maxCount * 100 + "%" } }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "atlas-chart-count", children: node.plugin_count ?? 0 })
-        ] }, node.id)) }),
-        roots.map((node) => renderNode(node)),
-        !tree.length && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u6682\u65E0\u56FE\u8C31" })
-      ] })
+          list(results.results).length ? list(results.results).map((r, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "button",
+            {
+              className: "atlas-row",
+              disabled: !r.node_id,
+              onClick: () => selectPlugin(r.node_id),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: r.title }),
+                " ",
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-badge", children: r.kind }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "atlas-snippet", children: r.snippet })
+              ]
+            },
+            r.id + i
+          )) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u6CA1\u6709\u5339\u914D\u7684\u63D2\u4EF6\uFF0C\u8BD5\u8BD5\u80FD\u529B\u5173\u952E\u8BCD\u6216\u52FE\u9009\u5305\u542B\u4EC5 GitHub\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u8F93\u5165\u63D2\u4EF6\u540D\u79F0\u6216\u80FD\u529B\uFF0C\u641C\u7D22\u56FE\u8C31\u3002" })
+      ] }))
     ] })
   ] });
 }

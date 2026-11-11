@@ -32,6 +32,13 @@ const server = http.createServer((req, res) => {
   }
   res.end(JSON.stringify(data));
 });
+const toolNames = createToolSpecs({}).map((x) => x.name);
+for (const name of ['tree', 'tree_find', 'tree_sync', 'tree_rollback', 'families', 'plan', 'plans_refresh'])
+  assert.ok(toolNames.includes(`plugin_atlas_${name}`));
+assert.deepEqual(
+  createCommandSpecs({}).map((x) => x.name),
+  ['atlas', 'atlas-open'],
+);
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
 const cfg = { baseUrl: `http://127.0.0.1:${server.address().port}`, timeoutMs: 3000 };

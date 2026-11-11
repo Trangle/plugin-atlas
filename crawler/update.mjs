@@ -18,6 +18,7 @@
  */
 
 import fs from 'node:fs';
+import { readRaw, writeRaw, listRaw, readReadme, writeReadme } from './lib/store.mjs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
@@ -31,7 +32,10 @@ import { execFileSync } from 'node:child_process';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(process.env.ATLAS_ROOT || path.resolve(__dirname, '..'));
 const DATA_DIR = path.resolve(process.env.ATLAS_DATA_DIR || path.join(ROOT, 'data'));
-const atlasPath = file => String(file).replace(/^\.\//, '').startsWith('data/') ? path.join(DATA_DIR, String(file).replace(/^\.\/?data\//, '')) : path.join(ROOT, file);
+const atlasPath = (file) =>
+  String(file).replace(/^\.\//, '').startsWith('data/')
+    ? path.join(DATA_DIR, String(file).replace(/^\.?\/?data\//, ''))
+    : path.join(ROOT, file);
 const RAW_DIR = path.join(DATA_DIR, 'raw');
 const READMES_DIR = path.join(DATA_DIR, 'readmes');
 const STATE_PATH = path.join(RAW_DIR, 'state.json');
@@ -61,10 +65,13 @@ const MARKET_ORDER = [
 
 const NPM_SEARCH_WINDOW = Math.max(250, Number(process.env.NPM_SEARCH_WINDOW) || 5500);
 const NPM_PAGE_SIZE = 250;
-const GH_MIN_REMAINING = 5;      // 剩余请求 < 5 时停止 GitHub 请求
+const GH_MIN_REMAINING = 5; // 剩余请求 < 5 时停止 GitHub 请求
 // 每条 GitHub 搜索查询抓几页（每页 100）：匿名固定 ≤3；有 GITHUB_TOKEN 时可用 GITHUB_SEARCH_PAGES 提到 ≤10（GitHub 搜索上限 1000 条）
-const GH_SEARCH_PAGES = Math.max(1, Math.min((process.env.GITHUB_TOKEN || '').trim() ? 10 : 3, Math.floor(Number(process.env.GITHUB_SEARCH_PAGES) || 3)));
-const README_CONCURRENCY = 6;    // README / package.json 抓取并发上限
+const GH_SEARCH_PAGES = Math.max(
+  1,
+  Math.min((process.env.GITHUB_TOKEN || '').trim() ? 10 : 3, Math.floor(Number(process.env.GITHUB_SEARCH_PAGES) || 3)),
+);
+const README_CONCURRENCY = 6; // README / package.json 抓取并发上限
 const README_MAX_BYTES = 4 * 1024 * 1024;
 
 const ARGS = parseArgs(process.argv.slice(2));
@@ -82,11 +89,22 @@ const isEmptyValue = (v) => v == null || v === '' || (Array.isArray(v) && v.leng
 const isPlainObject = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
 
 function exists(p) {
-  try { fs.accessSync(p); return true; } catch { return false; }
+  try {
+    fs.accessSync(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
-function ensureDir(p) { fs.mkdirSync(p, { recursive: true }); }
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
 function readJsonFile(p, fallback = null) {
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return fallback;
+  }
 }
 /** 同目录 tmp 文件 + fsync + rename，保证 data/*.jsonl、data/*.json 不会写出半截 */
 function writeFileAtomic(p, data) {
@@ -101,30 +119,79 @@ function writeFileAtomic(p, data) {
     fd = null;
     fs.renameSync(tmp, p);
   } catch (e) {
-    try { if (fd != null) fs.closeSync(fd); } catch { /* ignore */ }
-    try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ }
+    try {
+      if (fd != null) fs.closeSync(fd);
+    } catch {
+      /* ignore */
+    }
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      /* ignore */
+    }
     throw e;
   }
 }
-function writeJsonAtomic(p, obj) { writeFileAtomic(p, JSON.stringify(obj, null, 1) + '\n'); }
+function writeJsonAtomic(p, obj) {
+  writeFileAtomic(p, JSON.stringify(obj, null, 1) + '\n');
+}
+function cachedRaw(key) {
+  const row = readRaw(key);
+  if (row) return row;
+  try {
+    return { body: fs.readFileSync(atlasPath(key), 'utf8') };
+  } catch (e) {
+    if (e.code === 'ENOENT') return null;
+    throw e;
+  }
+}
+function cachedJson(key) {
+  try {
+    return JSON.parse(cachedRaw(key)?.body);
+  } catch {
+    return null;
+  }
+}
+function saveRaw(key, body, meta = {}) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  writeRaw(key, { ...meta, sha256: sha256(buf), body: buf });
+  if (ARGS.keepRaw) writeFileAtomic(path.join(DATA_DIR, '.tmp-raw', key.replace(/^data\/raw\//, '')), buf);
+}
 
 // ── 可选 GitHub token（只从环境变量 GITHUB_TOKEN 读取；绝不打印/写日志/写盘）──
 const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim();
 const GITHUB_AUTH_MODE = GITHUB_TOKEN ? 'token' : 'anonymous';
 /** 把任何输出里可能出现的 token 脱敏 */
 function redact(v) {
-  let t = typeof v === 'string' ? v : (v instanceof Error ? (v.stack || v.message) : (typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)));
+  let t =
+    typeof v === 'string'
+      ? v
+      : v instanceof Error
+        ? v.stack || v.message
+        : typeof v === 'object' && v !== null
+          ? JSON.stringify(v)
+          : String(v);
   if (GITHUB_TOKEN) t = t.split(GITHUB_TOKEN).join('***');
-  return t.replace(/\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, '***').replace(/(authorization:\s*)(bearer|token)\s+\S+/gi, '$1$2 ***');
+  return t
+    .replace(/\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, '***')
+    .replace(/(authorization:\s*)(bearer|token)\s+\S+/gi, '$1$2 ***');
 }
 /** 只给 api.github.com 的请求加 Authorization 头（raw.githubusercontent / npm / jsDelivr 一律不带） */
 function githubAuthHeaders(url) {
   if (!GITHUB_TOKEN) return {};
-  try { if (new URL(url).hostname !== 'api.github.com') return {}; } catch { return {}; }
+  try {
+    if (new URL(url).hostname !== 'api.github.com') return {};
+  } catch {
+    return {};
+  }
   return { authorization: `Bearer ${GITHUB_TOKEN}` };
 }
-function log(...a) { console.log(...a.map((x) => (typeof x === 'string' ? redact(x) : x))); }
-function warn(...a) { console.warn('[warn]', ...a.map((x) => redact(x))); }
+function log(...a) {
+  console.log(...a.map((x) => (typeof x === 'string' ? redact(x) : x)));
+}
+function warn(...a) {
+  console.warn('[warn]', ...a.map((x) => redact(x)));
+}
 
 function parseArgs(argv) {
   const opts = {
@@ -136,6 +203,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--offline') opts.offline = true;
+    else if (a === '--keep-raw') opts.keepRaw = true;
     else if (a === '--skip-github') opts.skipGithub = true;
     else if (a === '--github-full') opts.githubFull = true;
     else if (a === '--no-analyze') opts.noAnalyze = true;
@@ -237,7 +305,9 @@ function writeStateNow() {
   lastStateSave = Date.now();
   stateDirty = false;
 }
-function flushState() { if (stateDirty || lastStateSave === 0) writeStateNow(); }
+function flushState() {
+  if (stateDirty || lastStateSave === 0) writeStateNow();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HTTP + 缓存（etag / last-modified / sha256 内容对比）
@@ -279,27 +349,38 @@ async function request(url, { headers = {}, timeoutMs = 25000, retries = 1, maxB
       const ra = Number(res.headers.get('retry-after'));
       if (Number.isFinite(ra) && ra > 0) wait = ra * 1000;
       else wait = Math.min(2000 * 2 ** attempt, 12000) + Math.floor(Math.random() * 500);
-      try { await res.body?.cancel(); } catch { /* ignore */ }
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* ignore */
+      }
       if (attempt < retries) await sleep(wait);
       continue;
     }
     if (attempt < retries) await sleep(1000 * (attempt + 1));
   }
-  if (!res) return { status: 0, buffer: Buffer.alloc(0), headers: {}, error: redact(String(lastErr || 'fetch failed')) };
+  if (!res)
+    return { status: 0, buffer: Buffer.alloc(0), headers: {}, error: redact(String(lastErr || 'fetch failed')) };
 
   const headersObj = {};
   for (const [k, v] of res.headers.entries()) headersObj[k.toLowerCase()] = v;
 
   if (res.status === 304) return { status: 304, buffer: Buffer.alloc(0), headers: headersObj };
   if (maxBytes > 0 && Number(res.headers.get('content-length') || 0) > maxBytes) {
-    try { await res.body?.cancel(); } catch { /* ignore */ }
+    try {
+      await res.body?.cancel();
+    } catch {
+      /* ignore */
+    }
     return { status: 413, tooLarge: true, buffer: Buffer.alloc(0), headers: headersObj };
   }
   let buffer = Buffer.alloc(0);
   try {
     buffer = Buffer.from(await res.arrayBuffer());
     if (res.status >= 200 && res.status < 300) stats.bytes_downloaded += buffer.length;
-  } catch { /* 204 等无 body */ }
+  } catch {
+    /* 204 等无 body */
+  }
   return { status: res.status, buffer, headers: headersObj };
 }
 
@@ -309,23 +390,33 @@ async function request(url, { headers = {}, timeoutMs = 25000, retries = 1, maxB
  *  - 200 → 与缓存 sha256 比较，内容一致则标记 unchanged（不重写文件）
  *  - 网络失败且已有缓存 → 回退旧缓存（stale）
  */
-async function fetchCached({ key, url, file, headers = {}, timeoutMs = 30000, retries = 1, maxBytes = 0 }) {
+async function fetchCached({
+  key,
+  url,
+  file,
+  headers = {},
+  timeoutMs = 30000,
+  retries = 1,
+  maxBytes = 0,
+  requireOriginal = false,
+}) {
   const abs = atlasPath(file);
-  const meta = state.http[key] || null;
-  const hasFile = exists(abs);
+  const cached = cachedRaw(file);
+  const meta = cached && readRaw(file) ? cached : state.http[key] || null;
+  const hasFile = !!cached;
 
   if (ARGS.offline) {
     if (hasFile) {
       stats.cache_hits++;
-      return { status: 200, buffer: fs.readFileSync(abs), headers: {}, cached: true, unchanged: true };
+      return { status: 200, buffer: Buffer.from(cached.body), headers: {}, cached: true, unchanged: true };
     }
     stats.http_error++;
     return { status: 0, error: 'offline cache miss', missing: true };
   }
 
   const reqHeaders = { ...headers };
-  if (hasFile && meta?.etag) reqHeaders['if-none-match'] = meta.etag;
-  else if (hasFile && meta?.last_modified) reqHeaders['if-modified-since'] = meta.last_modified;
+  if (!requireOriginal && hasFile && meta?.etag) reqHeaders['if-none-match'] = meta.etag;
+  else if (!requireOriginal && hasFile && meta?.last_modified) reqHeaders['if-modified-since'] = meta.last_modified;
 
   const r = await request(url, { headers: reqHeaders, timeoutMs, retries, maxBytes });
 
@@ -333,14 +424,19 @@ async function fetchCached({ key, url, file, headers = {}, timeoutMs = 30000, re
     stats.http_304++;
     state.http[key] = { ...(meta || {}), url, file, status: 304, fetched_at: nowIso(), checked_at: nowIso() };
     scheduleStateSave();
-    return { status: 304, buffer: fs.readFileSync(abs), headers: r.headers, cached: true, notModified: true };
+    return { status: 304, buffer: Buffer.from(cached.body), headers: r.headers, cached: true, notModified: true };
   }
 
   if (r.status === 200) {
     const buf = r.buffer;
     const hash = sha256(buf);
     const unchanged = hasFile && meta?.sha256 === hash;
-    if (!unchanged) writeFileAtomic(abs, buf);
+    saveRaw(file, buf, {
+      url,
+      etag: r.headers.etag || meta?.etag || null,
+      last_modified: r.headers['last-modified'] || meta?.last_modified || null,
+      status: 200,
+    });
     state.http[key] = {
       url,
       file,
@@ -351,7 +447,8 @@ async function fetchCached({ key, url, file, headers = {}, timeoutMs = 30000, re
       sha256: hash,
       size: buf.length,
     };
-    if (unchanged) stats.http_unchanged++; else stats.http_200++;
+    if (unchanged) stats.http_unchanged++;
+    else stats.http_200++;
     scheduleStateSave();
     return { status: 200, buffer: buf, headers: r.headers, cached: unchanged, unchanged };
   }
@@ -369,7 +466,7 @@ async function fetchCached({ key, url, file, headers = {}, timeoutMs = 30000, re
     stats.stale_cache_hits++;
     state.http[key] = { ...(meta || {}), url, file, stale: true, last_error: err, checked_at: nowIso() };
     scheduleStateSave();
-    return { status: 200, buffer: fs.readFileSync(abs), headers: r.headers, cached: true, stale: true, error: err };
+    return { status: 200, buffer: Buffer.from(cached.body), headers: r.headers, cached: true, stale: true, error: err };
   }
   return { status: r.status || 0, buffer: null, headers: r.headers, error: err };
 }
@@ -398,7 +495,11 @@ function normalizeRepoUrl(input) {
 
 function repoSlug(repoUrlOrSlug) {
   if (!repoUrlOrSlug) return null;
-  let s = String(repoUrlOrSlug).trim().replace(/^git\+/, '').replace(/\.git$/, '').replace(/\/$/, '');
+  let s = String(repoUrlOrSlug)
+    .trim()
+    .replace(/^git\+/, '')
+    .replace(/\.git$/, '')
+    .replace(/\/$/, '');
   const m = s.match(/github\.com[/:]([^/]+)\/([^/#?]+)/i);
   if (m) return `${m[1]}/${m[2]}`;
   if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(s)) return s;
@@ -411,7 +512,9 @@ function jsdelivrPkgBase(pkg, version) {
     ? `https://cdn.jsdelivr.net/npm/${p}@${encodeURIComponent(version)}`
     : `https://cdn.jsdelivr.net/npm/${p}`;
 }
-function jsdelivrFileUrl(pkg, version, filename) { return `${jsdelivrPkgBase(pkg, version)}/${filename}`; }
+function jsdelivrFileUrl(pkg, version, filename) {
+  return `${jsdelivrPkgBase(pkg, version)}/${filename}`;
+}
 function registryPackumentUrl(pkg) {
   const p = String(pkg);
   return `https://registry.npmjs.org/${p.startsWith('@') ? p.replace('/', '%2f') : p}`;
@@ -449,7 +552,11 @@ async function fetchCatalogIndex() {
     file: 'data/raw/index/awesome-plugins.json',
   });
   if (r.buffer) {
-    try { data = JSON.parse(r.buffer.toString('utf8')); } catch (e) { warn(`plugins.json 解析失败: ${e.message}`); }
+    try {
+      data = JSON.parse(r.buffer.toString('utf8'));
+    } catch (e) {
+      warn(`plugins.json 解析失败: ${e.message}`);
+    }
   }
   if (!data || !Array.isArray(data.plugins) || data.plugins.length === 0) {
     warn('主数据源不可用，回退 jsDelivr 镜像 dsh-plugin-catalog/plugins.json');
@@ -461,7 +568,11 @@ async function fetchCatalogIndex() {
       file: 'data/raw/index/awesome-plugins-mirror.json',
     });
     if (r2.buffer) {
-      try { data = JSON.parse(r2.buffer.toString('utf8')); } catch (e) { warn(`镜像 plugins.json 解析失败: ${e.message}`); }
+      try {
+        data = JSON.parse(r2.buffer.toString('utf8'));
+      } catch (e) {
+        warn(`镜像 plugins.json 解析失败: ${e.message}`);
+      }
     }
   }
 
@@ -485,7 +596,9 @@ async function fetchCatalogIndex() {
     catalog_count: data?.count ?? null,
     records: plugins.length,
   };
-  log(`[index] ${plugins.length} 条（source=${source}${mirrorUsed ? '，镜像回退' : ''}，catalog.updated=${data?.updated || '?'}）`);
+  log(
+    `[index] ${plugins.length} 条（source=${source}${mirrorUsed ? '，镜像回退' : ''}，catalog.updated=${data?.updated || '?'}）`,
+  );
   return plugins;
 }
 
@@ -510,14 +623,22 @@ async function fetchNpmSearch(marketId, keyword) {
     if (from > 0 && !ARGS.offline) await sleep(500); // 控制请求速率，避免 registry 429（离线不等待）
     const url = `${NPM_SEARCH_URL}?text=${encodeURIComponent(`keywords:${keyword}`)}&size=${NPM_PAGE_SIZE}&from=${from}`;
     const file = `${dir}/page-${String(from).padStart(6, '0')}.json`;
-    const r = await fetchCached({ key: `npm-search:${marketId}:${from}`, url, file, headers: { accept: 'application/json' }, retries: 4 });
+    const r = await fetchCached({
+      key: `npm-search:${marketId}:${from}`,
+      url,
+      file,
+      headers: { accept: 'application/json' },
+      retries: 4,
+    });
     if (!r.buffer) {
       pageErrors++;
       warn(`[${marketId}] from=${from} 抓取失败（${r.error || r.status}），停止该市场分页`);
       break;
     }
     let d;
-    try { d = JSON.parse(r.buffer.toString('utf8')); } catch (e) {
+    try {
+      d = JSON.parse(r.buffer.toString('utf8'));
+    } catch (e) {
       pageErrors++;
       warn(`[${marketId}] from=${from} JSON 解析失败: ${e.message}`);
       break;
@@ -594,7 +715,10 @@ function extractConstArray(text, name) {
       else if (ch === inStr) inStr = null;
       continue;
     }
-    if (ch === '"' || ch === "'" || ch === '`') { inStr = ch; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inStr = ch;
+      continue;
+    }
     if (ch === '[') depth++;
     else if (ch === ']') {
       depth--;
@@ -616,13 +740,19 @@ function findAppBoot() {
     const which = execFileSync('which', ['dsh'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     if (which) {
       let real = which;
-      try { real = fs.realpathSync(which); } catch { /* keep */ }
+      try {
+        real = fs.realpathSync(which);
+      } catch {
+        /* keep */
+      }
       const m = real.match(/^(.*?)\/lib\/node_modules\/@deepseek-ai\/dsh\//);
       if (m) roots.push(m[1]);
       const binIdx = real.indexOf('/bin/dsh');
       if (binIdx > 0) roots.push(real.slice(0, binIdx));
     }
-  } catch { /* dsh 未在 PATH，忽略 */ }
+  } catch {
+    /* dsh 未在 PATH，忽略 */
+  }
   roots.push(path.join(os.homedir(), '.local/opt/dsh'), '/usr/local', '/opt/dsh', '/usr');
 
   const candidates = roots.map((r) => path.join(r, rel));
@@ -634,7 +764,9 @@ function findAppBoot() {
     try {
       const dshPkg = path.resolve(path.dirname(idx), '../../../../package.json');
       version = readJsonFile(dshPkg, null)?.version || null;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return { indexPath: idx, version };
   }
   return null;
@@ -645,7 +777,7 @@ function loadInventory() {
   const t0 = Date.now();
   const cacheRel = 'data/raw/inventory/dsh-official-on-demand.json';
   const cacheAbs = atlasPath(cacheRel);
-  const found = findAppBoot();
+  const found = ARGS.offline && cachedRaw(cacheRel) ? null : findAppBoot();
   let entries = null;
   let dshVersion = null;
   let source = null;
@@ -659,21 +791,24 @@ function loadInventory() {
         entries = catalog;
         dshVersion = found.version;
         source = found.indexPath;
-        writeJsonAtomic(cacheAbs, {
-          dsh_version: dshVersion,
-          source,
-          extracted_at: nowIso(),
-          catalog: entries,
-          on_demand_bundles: Array.isArray(onDemand) ? onDemand : [],
-        });
+        saveRaw(
+          cacheRel,
+          JSON.stringify({
+            dsh_version: dshVersion,
+            source,
+            extracted_at: nowIso(),
+            catalog: entries,
+            on_demand_bundles: Array.isArray(onDemand) ? onDemand : [],
+          }),
+        );
       }
     } catch (e) {
       warn(`读取本机 app-boot 常量失败: ${e.message}`);
     }
   }
 
-  if (!entries && exists(cacheAbs)) {
-    const cached = readJsonFile(cacheAbs, null);
+  if (!entries && cachedRaw(cacheRel)) {
+    const cached = cachedJson(cacheRel);
     if (Array.isArray(cached?.catalog)) {
       entries = cached.catalog;
       dshVersion = cached.dsh_version || null;
@@ -802,13 +937,13 @@ async function fetchGithubHub() {
     for (let page = 1; page <= GH_SEARCH_PAGES; page++) {
       const key = `github:search:${query.slug}:page-${page}`;
       const file = `data/raw/github/search/${query.slug}-p${page}.json`;
-      const hasCache = exists(atlasPath(file));
+      const hasCache = !!cachedRaw(file);
 
       if (!ghRateOk()) {
         // 剩余额度不足：停止请求并记录；已有缓存仍然复用（保证重建数据完整）
         stoppedEarly = true;
         if (hasCache) {
-          const d = readJsonFile(atlasPath(file), null);
+          const d = cachedJson(file);
           if (d) {
             addItems(d);
             if (page === 1 && qTotal == null) qTotal = d.total_count ?? null;
@@ -834,7 +969,11 @@ async function fetchGithubHub() {
       ghRateFromHeaders(r.headers || {});
       if (r.buffer) {
         let d = null;
-        try { d = JSON.parse(r.buffer.toString('utf8')); } catch (e) { warn(`[github] ${query.slug} p${page} JSON 解析失败: ${e.message}`); }
+        try {
+          d = JSON.parse(r.buffer.toString('utf8'));
+        } catch (e) {
+          warn(`[github] ${query.slug} p${page} JSON 解析失败: ${e.message}`);
+        }
         if (d) {
           addItems(d);
           if (page === 1) qTotal = d.total_count ?? null;
@@ -888,7 +1027,9 @@ async function fetchGithubHub() {
     stopped_early: stoppedEarly,
     rate_limit_remaining: state.github.remaining,
   };
-  log(`[github-hub] ${items.size} 个 repo（pages=${pagesNetwork}${pagesUsed !== pagesNetwork ? `，缓存复用页=${pagesUsed - pagesNetwork}` : ''}, total_count=${totalCount ?? '?'}, rate_remaining=${state.github.remaining ?? '?'}${stoppedEarly ? '，已按限频提前停止' : ''}）`);
+  log(
+    `[github-hub] ${items.size} 个 repo（pages=${pagesNetwork}${pagesUsed !== pagesNetwork ? `，缓存复用页=${pagesUsed - pagesNetwork}` : ''}, total_count=${totalCount ?? '?'}, rate_remaining=${state.github.remaining ?? '?'}${stoppedEarly ? '，已按限频提前停止' : ''}）`,
+  );
   return [...items.values()];
 }
 
@@ -916,7 +1057,7 @@ function candidateFromCatalog(p) {
     updated_at: p.capabilityCheckedAt || p.downloadsCheckedAt || null,
     markets: ['index:awesome-dsh-plugin'],
     category_id: p.category || null,
-    capabilities: caps,           // 种子：catalog 能力标注（分析阶段可覆盖）
+    capabilities: caps, // 种子：catalog 能力标注（分析阶段可覆盖）
     seed_category: p.category || null,
     catalog_capabilities: caps,
     capability_red_lines: Array.isArray(p.capabilityRedLines) ? p.capabilityRedLines.map(String) : [],
@@ -1013,7 +1154,15 @@ function candidateFromInventory(entry, marketId, dshVersion) {
 // 合并去重（notes §4：npm 包优先作 id；同一条目合并 markets[]；目录信息优先）
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ARRAY_UNION_FIELDS = new Set(['keywords', 'provides', 'tools', 'deps_dsh', 'capabilities', 'catalog_capabilities', 'capability_red_lines']);
+const ARRAY_UNION_FIELDS = new Set([
+  'keywords',
+  'provides',
+  'tools',
+  'deps_dsh',
+  'capabilities',
+  'catalog_capabilities',
+  'capability_red_lines',
+]);
 
 function createStore() {
   return { records: [], byPackage: new Map(), byRepo: new Map() };
@@ -1144,10 +1293,10 @@ function assignReadmeFiles(targets) {
 async function readmeOne(p, fileRel) {
   const abs = atlasPath(fileRel);
   const prev = state.readmes[p.id];
-  const verKey = p.version ?? null;
+  const verKey = p.version ?? p.updated_at ?? null;
   const sameVersion = prev != null && String(prev.version ?? '') === String(verKey ?? '');
 
-  if (sameVersion && prev.status === 'ok' && exists(abs)) {
+  if (sameVersion && prev.status === 'ok' && readReadme(fileRel) != null) {
     stats.readme.cached++;
     p.readme_path = fileRel;
     return;
@@ -1158,7 +1307,7 @@ async function readmeOne(p, fileRel) {
   }
   if (ARGS.offline) {
     stats.readme.offline_skipped++;
-    if (exists(abs)) p.readme_path = fileRel;
+    if (readReadme(fileRel) != null) p.readme_path = fileRel;
     return;
   }
 
@@ -1173,7 +1322,10 @@ async function readmeOne(p, fileRel) {
         outcome = { text: r.buffer.toString('utf8'), source: 'jsdelivr', url };
         break;
       }
-      if (r.status === 404 || r.status === 410) { sawNotFound = true; continue; }
+      if (r.status === 404 || r.status === 410) {
+        sawNotFound = true;
+        continue;
+      }
       if (r.status === 413) break;
       // 其它错误继续尝试下一个候选
     }
@@ -1184,15 +1336,18 @@ async function readmeOne(p, fileRel) {
         url: registryPackumentUrl(p.package),
         file: `data/raw/packument/${safeId(p.id)}.json`,
         maxBytes: 16 * 1024 * 1024,
+        requireOriginal: true,
         retries: 1,
       });
       if (pr.buffer) {
         try {
           const doc = JSON.parse(pr.buffer.toString('utf8'));
-          const txt = typeof doc.readme === 'string' && doc.readme.trim()
-            ? doc.readme
-            : (p.version && doc.versions?.[p.version]?.readme) || null;
-          if (txt && String(txt).trim()) outcome = { text: String(txt), source: 'registry-packument', url: `registry.npmjs.org/${p.package}` };
+          const txt =
+            typeof doc.readme === 'string' && doc.readme.trim()
+              ? doc.readme
+              : (p.version && doc.versions?.[p.version]?.readme) || null;
+          if (txt && String(txt).trim())
+            outcome = { text: String(txt), source: 'registry-packument', url: `registry.npmjs.org/${p.package}` };
         } catch (e) {
           warn(`packument 解析失败 ${p.package}: ${e.message}`);
         }
@@ -1205,13 +1360,17 @@ async function readmeOne(p, fileRel) {
     if (slug) {
       const url = `https://raw.githubusercontent.com/${slug}/${p.gh_default_branch || 'HEAD'}/README.md`;
       const r = await request(url, { retries: 1, timeoutMs: 25000, maxBytes: README_MAX_BYTES });
-      if (r.status === 200 && r.buffer.length > 0) outcome = { text: r.buffer.toString('utf8'), source: 'raw.githubusercontent', url };
+      if (r.status === 200 && r.buffer.length > 0)
+        outcome = { text: r.buffer.toString('utf8'), source: 'raw.githubusercontent', url };
       else if (r.status === 404 || r.status === 410) sawNotFound = true;
     }
   }
 
   if (outcome) {
-    writeFileAtomic(abs, outcome.text);
+    if (ARGS.keepRaw) writeFileAtomic(path.join(DATA_DIR, '.tmp-raw', 'readmes', path.basename(fileRel)), outcome.text);
+    writeReadme(fileRel, outcome.text);
+    // A legacy disk copy takes precedence on reads; remove it after replacement.
+    fs.rmSync(abs, { force: true });
     p.readme_path = fileRel;
     state.readmes[p.id] = {
       version: verKey,
@@ -1240,7 +1399,11 @@ async function pool(items, concurrency, worker, label) {
     while (true) {
       const i = next++;
       if (i >= total) return;
-      try { await worker(items[i], i); } catch (e) { warn(`${label} #${i} 失败: ${e.message}`); }
+      try {
+        await worker(items[i], i);
+      } catch (e) {
+        warn(`${label} #${i} 失败: ${e.message}`);
+      }
       done++;
       if (done % 100 === 0) {
         log(`  ${label}: ${done}/${total}`);
@@ -1260,7 +1423,9 @@ async function runReadmeStage(plugins) {
   await pool(targets, README_CONCURRENCY, (p) => readmeOne(p, files.get(p.id)), 'README');
   writeStateNow();
   stats.readme.elapsed_ms = Date.now() - t0;
-  log(`[readme] 完成：新写 ${stats.readme.written}，缓存命中 ${stats.readme.cached}，404=${stats.readme.none}，错误=${stats.readme.error}`);
+  log(
+    `[readme] 完成：新写 ${stats.readme.written}，缓存命中 ${stats.readme.cached}，404=${stats.readme.none}，错误=${stats.readme.error}`,
+  );
   return targets;
 }
 
@@ -1268,7 +1433,23 @@ async function runReadmeStage(plugins) {
 // package.json / deps_dsh / provides / tools
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DECL_RESERVED = new Set(['name', 'id', 'description', 'version', 'enabled', 'config', 'type', 'title', 'default', 'dependencies', 'peerDependencies', 'icon', 'author', 'homepage', 'license']);
+const DECL_RESERVED = new Set([
+  'name',
+  'id',
+  'description',
+  'version',
+  'enabled',
+  'config',
+  'type',
+  'title',
+  'default',
+  'dependencies',
+  'peerDependencies',
+  'icon',
+  'author',
+  'homepage',
+  'license',
+]);
 const PROVIDES_KEYS = ['provides', 'provide', 'services', 'service'];
 const TOOLS_KEYS = ['tools', 'tool'];
 // 只从 dsh/cordis 的显式声明容器里取名字（不扫描 compatibility/catalog 等元数据，
@@ -1277,11 +1458,20 @@ const DECL_CONTAINER_KEYS = ['plugin', 'manifest', 'meta', 'metadata', 'declarat
 
 function collectDeclNames(value, out, depth = 0) {
   if (depth > 5 || value == null) return;
-  if (typeof value === 'string') { if (value.trim()) out.add(value.trim()); return; }
-  if (Array.isArray(value)) { for (const v of value) collectDeclNames(v, out, depth + 1); return; }
+  if (typeof value === 'string') {
+    if (value.trim()) out.add(value.trim());
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectDeclNames(v, out, depth + 1);
+    return;
+  }
   if (isPlainObject(value)) {
     const name = value.name || value.id || value.tool || value.service;
-    if (typeof name === 'string' && name.trim()) { out.add(name.trim()); return; }
+    if (typeof name === 'string' && name.trim()) {
+      out.add(name.trim());
+      return;
+    }
     for (const [k, v] of Object.entries(value)) {
       if (DECL_RESERVED.has(k)) continue;
       if (typeof v === 'string' && v.trim()) out.add(k);
@@ -1336,9 +1526,9 @@ async function pkgJsonOne(p) {
   const prev = state.pkgjs[p.id];
   const sameVersion = prev != null && String(prev.version ?? '') === String(ver ?? '');
 
-  if (sameVersion && prev.status === 'ok' && exists(abs)) {
+  if (sameVersion && prev.status === 'ok' && cachedRaw(cacheRel)) {
     stats.package_json.cached++;
-    const doc = readJsonFile(abs, null);
+    const doc = cachedJson(cacheRel);
     if (doc) applyPackageJson(p, doc);
     return;
   }
@@ -1347,9 +1537,9 @@ async function pkgJsonOne(p) {
     return;
   }
   if (ARGS.offline) {
-    if (exists(abs)) {
+    if (cachedRaw(cacheRel)) {
       stats.package_json.cached++;
-      const doc = readJsonFile(abs, null);
+      const doc = cachedJson(cacheRel);
       if (doc) applyPackageJson(p, doc);
     }
     return;
@@ -1358,27 +1548,44 @@ async function pkgJsonOne(p) {
   let doc = null;
   let source = null;
   let sawNotFound = false;
+  let rawBody = null;
 
   const url = jsdelivrFileUrl(p.package, ver, 'package.json');
   const r = await request(url, { retries: 1, timeoutMs: 20000, maxBytes: 2 * 1024 * 1024 });
   if (r.status === 200) {
-    try { doc = JSON.parse(r.buffer.toString('utf8')); source = 'jsdelivr'; } catch { doc = null; }
+    try {
+      doc = JSON.parse(r.buffer.toString('utf8'));
+      rawBody = r.buffer;
+      source = 'jsdelivr';
+    } catch {
+      doc = null;
+    }
   } else if (r.status === 404 || r.status === 410) {
     sawNotFound = true;
   }
 
   if (!doc && ver) {
     // jsDelivr 不可用（404/403/5xx 等）时回退 registry 精确版本 manifest
-    const r2 = await request(registryVersionUrl(p.package, ver), { retries: 1, timeoutMs: 20000, maxBytes: 4 * 1024 * 1024 });
+    const r2 = await request(registryVersionUrl(p.package, ver), {
+      retries: 1,
+      timeoutMs: 20000,
+      maxBytes: 4 * 1024 * 1024,
+    });
     if (r2.status === 200) {
-      try { doc = JSON.parse(r2.buffer.toString('utf8')); source = 'registry'; } catch { doc = null; }
+      try {
+        doc = JSON.parse(r2.buffer.toString('utf8'));
+        rawBody = r2.buffer;
+        source = 'registry';
+      } catch {
+        doc = null;
+      }
     } else if (r2.status === 404 || r2.status === 410) {
       sawNotFound = true;
     }
   }
 
   if (doc) {
-    writeFileAtomic(abs, JSON.stringify(doc));
+    saveRaw(cacheRel, rawBody, { url: source === 'jsdelivr' ? url : registryVersionUrl(p.package, ver), status: 200 });
     applyPackageJson(p, doc);
     state.pkgjs[p.id] = { version: ver, status: 'ok', source, file: cacheRel, fetched_at: nowIso() };
     stats.package_json.written++;
@@ -1399,7 +1606,9 @@ async function runPackageJsonStage(targets) {
   await pool(npmTargets, README_CONCURRENCY, (p) => pkgJsonOne(p), 'pkgjson');
   writeStateNow();
   stats.package_json.elapsed_ms = Date.now() - t0;
-  log(`[pkgjson] 完成：新写 ${stats.package_json.written}，缓存命中 ${stats.package_json.cached}，缺失 ${stats.package_json.none}，错误 ${stats.package_json.error}`);
+  log(
+    `[pkgjson] 完成：新写 ${stats.package_json.written}，缓存命中 ${stats.package_json.cached}，缺失 ${stats.package_json.none}，错误 ${stats.package_json.error}`,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1457,12 +1666,22 @@ function printReport(report) {
   log('市场明细:');
   if (m['index:awesome-dsh-plugin']) {
     const x = m['index:awesome-dsh-plugin'];
-    log(fmt('index:awesome-dsh-plugin', `catalog=${x.records}  source=${x.source}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}`));
+    log(
+      fmt(
+        'index:awesome-dsh-plugin',
+        `catalog=${x.records}  source=${x.source}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}`,
+      ),
+    );
   }
   for (const id of ['npm:dsh-plugin', 'npm:cordis-plugin']) {
     const x = m[id];
     if (!x) continue;
-    log(fmt(id, `total=${x.total ?? '?'}  pages=${x.pages}  返回=${x.fetched_objects}  校验通过=${x.validated}  唯一包=${x.records}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}`));
+    log(
+      fmt(
+        id,
+        `total=${x.total ?? '?'}  pages=${x.pages}  返回=${x.fetched_objects}  校验通过=${x.validated}  唯一包=${x.records}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}`,
+      ),
+    );
   }
   if (m['inventory:dsh-official-on-demand']) {
     const x = m['inventory:dsh-official-on-demand'];
@@ -1470,26 +1689,46 @@ function printReport(report) {
   }
   if (m['github:blue-whale-harness']) {
     const x = m['github:blue-whale-harness'];
-    log(fmt('github:blue-whale-harness', `repos=${x.records}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}`));
+    log(
+      fmt(
+        'github:blue-whale-harness',
+        `repos=${x.records}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}`,
+      ),
+    );
   }
   if (m['github:dsh-plugin-hub']) {
     const x = m['github:dsh-plugin-hub'];
     const reuse = x.pages_used != null && x.pages_used !== x.pages ? `（另复用缓存页 ${x.pages_used - x.pages}）` : '';
-    log(fmt('github:dsh-plugin-hub', `repos=${x.records}  pages=${x.pages}${reuse}  total_count=${x.total_count ?? '?'}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}  remaining=${x.rate_limit_remaining ?? '?'}${x.stopped_early ? '  [已按限频提前停止]' : ''}`));
+    log(
+      fmt(
+        'github:dsh-plugin-hub',
+        `repos=${x.records}  pages=${x.pages}${reuse}  total_count=${x.total_count ?? '?'}  请求=${x.requests} 304=${x.not_modified} unchanged=${x.unchanged}  remaining=${x.rate_limit_remaining ?? '?'}${x.stopped_early ? '  [已按限频提前停止]' : ''}`,
+      ),
+    );
   }
   log('');
   log(`合并后插件总数: ${report.records.total}`);
-  log(`  npm 包: ${report.records.with_npm}    仅 GitHub: ${report.records.github_only}    无 id 跳过: ${report.records.skipped_no_id}`);
-  log(`README: 目标=${stats.readme.targets} 新写=${stats.readme.written} 缓存=${stats.readme.cached} 404=${stats.readme.none} 错误=${stats.readme.error} → readme_path 非空=${stats.output.readme_paths}`);
-  log(`package.json: 目标=${stats.package_json.targets} 新写=${stats.package_json.written} 缓存=${stats.package_json.cached} 缺失=${stats.package_json.none} 错误=${stats.package_json.error}`);
+  log(
+    `  npm 包: ${report.records.with_npm}    仅 GitHub: ${report.records.github_only}    无 id 跳过: ${report.records.skipped_no_id}`,
+  );
+  log(
+    `README: 目标=${stats.readme.targets} 新写=${stats.readme.written} 缓存=${stats.readme.cached} 404=${stats.readme.none} 错误=${stats.readme.error} → readme_path 非空=${stats.output.readme_paths}`,
+  );
+  log(
+    `package.json: 目标=${stats.package_json.targets} 新写=${stats.package_json.written} 缓存=${stats.package_json.cached} 缺失=${stats.package_json.none} 错误=${stats.package_json.error}`,
+  );
   log('');
   const statusDist = Object.entries(stats.status_counts)
     .sort((a, b) => (a[0] === 'error' ? 1 : b[0] === 'error' ? -1 : Number(a[0]) - Number(b[0])))
     .map(([k, v]) => `${k}=${v}`)
     .join(' ');
   log(`HTTP: 请求=${stats.requests}  (含 README/package.json)；状态分布: ${statusDist}`);
-  log(`      缓存端点: 304=${stats.http_304}  200-内容未变=${stats.http_unchanged}  缓存端点200=${stats.http_200}  404=${stats.http_404}  错误=${stats.http_error}`);
-  log(`      离线/陈旧缓存命中=${stats.cache_hits}  陈旧回退=${stats.stale_cache_hits}  下载字节=${stats.bytes_downloaded}`);
+  log(
+    `      缓存端点: 304=${stats.http_304}  200-内容未变=${stats.http_unchanged}  缓存端点200=${stats.http_200}  404=${stats.http_404}  错误=${stats.http_error}`,
+  );
+  log(
+    `      离线/陈旧缓存命中=${stats.cache_hits}  陈旧回退=${stats.stale_cache_hits}  下载字节=${stats.bytes_downloaded}`,
+  );
   log(`用时: ${(report.elapsed_ms / 1000).toFixed(1)}s`);
   log(`输出: data/plugins_base.jsonl (${report.records.total} 行)`);
   log(`状态: data/raw/state.json`);
@@ -1505,7 +1744,9 @@ function hasAnalysisWork() {
     const dir = path.join(DATA_DIR, 'work', stage);
     try {
       if (fs.existsSync(dir) && fs.readdirSync(dir).some((f) => f.endsWith('.out.json'))) return true;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   return false;
 }
@@ -1521,7 +1762,9 @@ function runAnalysisAfterCrawl() {
   }
   log('[analyze] 检测到 data/work 分析结果，执行增量 merge（node crawler/analyze.mjs --merge-only --no-reload）…');
   try {
-    const childEnv = { ...process.env }; delete childEnv.GITHUB_TOKEN; delete childEnv.GH_TOKEN;
+    const childEnv = { ...process.env };
+    delete childEnv.GITHUB_TOKEN;
+    delete childEnv.GH_TOKEN;
     const out = execFileSync(process.execPath, [ANALYZE_PATH, '--merge-only', '--no-reload'], {
       cwd: ROOT,
       env: childEnv,
@@ -1562,13 +1805,19 @@ const GH_CORE_MIN = Math.max(1, Number(process.env.GITHUB_CORE_MIN_REMAINING) ||
 const GH_SEARCH_MIN = 3;
 const ghRates = {}; // resource -> {remaining, reset, limit}
 function ghTrack(h) {
-  const res = h['x-ratelimit-resource']; if (!res || h['x-ratelimit-remaining'] == null) return;
-  ghRates[res] = { remaining: Number(h['x-ratelimit-remaining']), reset: Number(h['x-ratelimit-reset']), limit: Number(h['x-ratelimit-limit']) };
+  const res = h['x-ratelimit-resource'];
+  if (!res || h['x-ratelimit-remaining'] == null) return;
+  ghRates[res] = {
+    remaining: Number(h['x-ratelimit-remaining']),
+    reset: Number(h['x-ratelimit-reset']),
+    limit: Number(h['x-ratelimit-limit']),
+  };
   state.github.rates = { ...(state.github.rates || {}), [res]: { ...ghRates[res], at: nowIso() } };
   state.github.auth_mode = GITHUB_AUTH_MODE;
 }
 async function ghWait(resource) {
-  const r = ghRates[resource]; const min = resource === 'search' ? GH_SEARCH_MIN : GH_CORE_MIN;
+  const r = ghRates[resource];
+  const min = resource === 'search' ? GH_SEARCH_MIN : GH_CORE_MIN;
   if (r && r.remaining < min && r.reset * 1000 > Date.now()) {
     const ms = r.reset * 1000 - Date.now() + 3000;
     log(`[github] ${resource} 剩余 ${r.remaining} < ${min}，暂停 ${Math.ceil(ms / 1000)}s 等额度重置`);
@@ -1583,7 +1832,14 @@ async function ghGet(key, url, file) {
     await ghWait(resource);
     stats.github.requests++;
     stats.github[`requests_${resource}`] = (stats.github[`requests_${resource}`] || 0) + 1;
-    const r = await fetchCached({ key, url, file, headers: { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }, timeoutMs: 30000, retries: 1 });
+    const r = await fetchCached({
+      key,
+      url,
+      file,
+      headers: { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' },
+      timeoutMs: 30000,
+      retries: 1,
+    });
     ghTrack(r.headers || {});
     if ((r.status === 403 || r.status === 429) && !r.cached) {
       const ra = Number(r.headers?.['retry-after']);
@@ -1604,17 +1860,33 @@ const dayStr = (t) => new Date(t).toISOString().slice(0, 10);
 async function fetchGithubFull() {
   const t0 = Date.now();
   const items = new Map();
-  const add = (d) => { for (const it of (d?.items || [])) { if (it?.full_name) items.set(it.full_name.toLowerCase(), it); } };
+  const add = (d) => {
+    for (const it of d?.items || []) {
+      if (it?.full_name) items.set(it.full_name.toLowerCase(), it);
+    }
+  };
   const shards = [];
   async function page(query, from, to, p) {
     const q = `${query.q} created:${from}..${to}`;
     const url = `${GITHUB_SEARCH_URL}?q=${encodeURIComponent(q)}&per_page=100&page=${p}`;
-    const r = await ghGet(`github:full:${query.slug}:${from}:${to}:p${p}`, url, `data/raw/github/full/${query.slug}/${from}_${to}-p${p}.json`);
-    if (!r.buffer) { warn(`[github-full] ${q} p${p} 失败（${r.error || r.status}）`); return null; }
-    try { return JSON.parse(r.buffer.toString('utf8')); } catch { return null; }
+    const r = await ghGet(
+      `github:full:${query.slug}:${from}:${to}:p${p}`,
+      url,
+      `data/raw/github/full/${query.slug}/${from}_${to}-p${p}.json`,
+    );
+    if (!r.buffer) {
+      warn(`[github-full] ${q} p${p} 失败（${r.error || r.status}）`);
+      return null;
+    }
+    try {
+      return JSON.parse(r.buffer.toString('utf8'));
+    } catch {
+      return null;
+    }
   }
   async function shard(query, fromT, toT) {
-    const from = dayStr(fromT), to = dayStr(toT);
+    const from = dayStr(fromT),
+      to = dayStr(toT);
     const d = await page(query, from, to, 1);
     if (!d) return;
     const total = d.total_count || 0;
@@ -1626,7 +1898,10 @@ async function fetchGithubFull() {
     }
     add(d);
     const pages = Math.min(10, Math.ceil(Math.min(total, 1000) / 100));
-    for (let p = 2; p <= pages; p++) { const dp = await page(query, from, to, p); if (dp) add(dp); }
+    for (let p = 2; p <= pages; p++) {
+      const dp = await page(query, from, to, p);
+      if (dp) add(dp);
+    }
     shards.push({ q: query.q, from, to, total_count: total, pages, truncated: total > 1000 });
   }
   const start = Date.parse('2008-01-01T00:00:00Z');
@@ -1636,24 +1911,61 @@ async function fetchGithubFull() {
     log(`[github-full] ${query.q}: 累计 ${items.size} 个 repo，分片 ${shards.filter((s) => s.q === query.q).length}`);
     writeStateNow();
   }
-  stats.markets['github:dsh-plugin-hub:full'] = { records: items.size, shards: shards.length, truncated_shards: shards.filter((s) => s.truncated).length, elapsed_ms: Date.now() - t0 };
-  state.github.full_last_run = { at: nowIso(), items: items.size, shards: shards.length, truncated: shards.filter((s) => s.truncated).length };
+  stats.markets['github:dsh-plugin-hub:full'] = {
+    records: items.size,
+    shards: shards.length,
+    truncated_shards: shards.filter((s) => s.truncated).length,
+    elapsed_ms: Date.now() - t0,
+  };
+  state.github.full_last_run = {
+    at: nowIso(),
+    items: items.size,
+    shards: shards.length,
+    truncated: shards.filter((s) => s.truncated).length,
+  };
   return [...items.values()];
 }
 /** GitHub-only 记录补元数据：GET /repos/{slug}（ETag 缓存；304 不计额度） */
 async function enrichGithubRepos(plugins, knownSlugs) {
-  const targets = plugins.filter((p) => !p.package && repoSlug(p.repo) && !knownSlugs.has(repoSlug(p.repo).toLowerCase()) && (p.stars == null || !p.description));
+  const targets = plugins.filter(
+    (p) =>
+      !p.package &&
+      repoSlug(p.repo) &&
+      !knownSlugs.has(repoSlug(p.repo).toLowerCase()) &&
+      (p.stars == null || !p.description),
+  );
   log(`[github-repos] 需补元数据 ${targets.length} 个仓库`);
-  let n = 0, filled = 0, missing = 0;
+  let n = 0,
+    filled = 0,
+    missing = 0;
   for (const p of targets) {
     const slug = repoSlug(p.repo);
-    const r = await ghGet(`github:repo:${slug.toLowerCase()}`, `https://api.github.com/repos/${slug}`, `data/raw/github/repos/${slug.replace('/', '__')}.json`);
+    const r = await ghGet(
+      `github:repo:${slug.toLowerCase()}`,
+      `https://api.github.com/repos/${slug}`,
+      `data/raw/github/repos/${slug.replace('/', '__')}.json`,
+    );
     n++;
-    if (r.notFound) { missing++; state.github.repos_missing = (state.github.repos_missing || 0); continue; }
-    if (r.buffer) { try { applyGithubRepo(p, JSON.parse(r.buffer.toString('utf8'))); filled++; } catch { /* ignore */ } }
-    if (n % 200 === 0) { log(`  github-repos: ${n}/${targets.length}（core 剩余 ${ghRates.core?.remaining ?? '?'}）`); writeStateNow(); }
+    if (r.notFound) {
+      missing++;
+      state.github.repos_missing = state.github.repos_missing || 0;
+      continue;
+    }
+    if (r.buffer) {
+      try {
+        applyGithubRepo(p, JSON.parse(r.buffer.toString('utf8')));
+        filled++;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (n % 200 === 0) {
+      log(`  github-repos: ${n}/${targets.length}（core 剩余 ${ghRates.core?.remaining ?? '?'}）`);
+      writeStateNow();
+    }
   }
-  stats.github.repos_enriched = filled; stats.github.repos_missing = missing;
+  stats.github.repos_enriched = filled;
+  stats.github.repos_missing = missing;
   log(`[github-repos] 完成：补全 ${filled}，404 ${missing}`);
 }
 function applyGithubRepo(p, d) {
@@ -1669,12 +1981,17 @@ function applyGithubRepo(p, d) {
 }
 /** 离线/后续运行：从缓存的 /repos 响应补元数据（0 请求） */
 function applyCachedGithubRepos(plugins) {
-  const dir = path.join(RAW_DIR, 'github', 'repos'); if (!exists(dir)) return 0;
+  const dir = 'data/raw/github/repos';
   let n = 0;
   for (const p of plugins) {
-    if (p.package) continue; const slug = repoSlug(p.repo); if (!slug) continue;
-    const f = path.join(dir, `${slug.replace('/', '__')}.json`);
-    if (exists(f)) { try { applyGithubRepo(p, JSON.parse(fs.readFileSync(f, 'utf8'))); n++; } catch { /* ignore */ } }
+    if (p.package) continue;
+    const slug = repoSlug(p.repo);
+    if (!slug) continue;
+    const d = cachedJson(`${dir}/${slug.replace('/', '__')}.json`);
+    if (d) {
+      applyGithubRepo(p, d);
+      n++;
+    }
   }
   return n;
 }
@@ -1684,14 +2001,20 @@ function attachKnownReadmes(plugins) {
   for (const p of plugins) {
     if (p.readme_path) continue;
     const st = state.readmes[p.id];
-    if (st && st.status === 'ok' && st.path && exists(atlasPath(st.path))) { p.readme_path = st.path; n++; }
+    if (st && st.status === 'ok' && st.path && readReadme(st.path) != null) {
+      p.readme_path = st.path;
+      n++;
+    }
   }
   return n;
 }
 
 async function main() {
   log(`[github] 认证模式: ${GITHUB_AUTH_MODE}（每查询 ${GH_SEARCH_PAGES} 页）`);
-  if (ARGS.help) { printHelp(); return; }
+  if (ARGS.help) {
+    printHelp();
+    return;
+  }
   ensureDir(RAW_DIR);
   ensureDir(READMES_DIR);
   ensureDir(path.join(RAW_DIR, 'index'));
@@ -1701,7 +2024,9 @@ async function main() {
   ensureDir(path.join(RAW_DIR, 'packument'));
   ensureDir(path.join(RAW_DIR, 'package-json'));
 
-  log(`Plugin Atlas 增量爬虫 v${CRAWLER_VERSION}（${ARGS.offline ? 'offline 只用缓存' : 'online'}${ARGS.skipGithub ? '，跳过 GitHub 市场' : ''}，README_LIMIT=${ARGS.readmeLimit}）`);
+  log(
+    `Plugin Atlas 增量爬虫 v${CRAWLER_VERSION}（${ARGS.offline ? 'offline 只用缓存' : 'online'}${ARGS.skipGithub ? '，跳过 GitHub 市场' : ''}，README_LIMIT=${ARGS.readmeLimit}）`,
+  );
 
   const store = createStore();
   let ghFullSlugs = new Set();
@@ -1713,7 +2038,10 @@ async function main() {
   flushState();
 
   // ── 2. npm 关键词搜索（dsh-plugin 为主，cordis-plugin 补充）─────────────────
-  for (const [marketId, keyword] of [['npm:dsh-plugin', 'dsh-plugin'], ['npm:cordis-plugin', 'cordis-plugin']]) {
+  for (const [marketId, keyword] of [
+    ['npm:dsh-plugin', 'dsh-plugin'],
+    ['npm:cordis-plugin', 'cordis-plugin'],
+  ]) {
     const packages = await fetchNpmSearch(marketId, keyword);
     for (const obj of packages.values()) addCandidate(store, candidateFromNpmSearch(obj, marketId));
     flushState();
@@ -1721,7 +2049,8 @@ async function main() {
 
   // ── 3. 本机官方 on-demand 清单（0 请求）────────────────────────────────────
   const inventory = loadInventory();
-  for (const entry of inventory.entries) addCandidate(store, candidateFromInventory(entry, 'inventory:dsh-official-on-demand', inventory.dshVersion));
+  for (const entry of inventory.entries)
+    addCandidate(store, candidateFromInventory(entry, 'inventory:dsh-official-on-demand', inventory.dshVersion));
   flushState();
 
   // ── 4/5. GitHub 市场（可 --skip-github 跳过）────────────────────────────────
@@ -1740,12 +2069,18 @@ async function main() {
       for (const item of fullItems) addCandidate(store, candidateFromGithubItem(item, 'github:dsh-plugin-hub'));
       ghFullSlugs = new Set(fullItems.map((i) => i.full_name.toLowerCase()));
       flushState();
-    } else if (exists(path.join(RAW_DIR, 'github', 'full'))) {
-      // 复用以前全量抓取的缓存分片（0 请求）
-      const dir = path.join(RAW_DIR, 'github', 'full'); let n = 0;
-      for (const q of fs.readdirSync(dir)) for (const f of fs.readdirSync(path.join(dir, q))) {
-        const d = readJsonFile(path.join(dir, q, f), null);
-        for (const it of (d?.items || [])) { if (it?.full_name) { addCandidate(store, candidateFromGithubItem(it, 'github:dsh-plugin-hub')); ghFullSlugs.add(it.full_name.toLowerCase()); n++; } }
+    } else {
+      // Merge store and legacy shard keys, preferring store for duplicates.
+      let n = 0;
+      for (const key of listRaw('data/raw/github/full/').filter((k) => k.endsWith('.json'))) {
+        const d = cachedJson(key);
+        for (const it of d?.items || []) {
+          if (it?.full_name) {
+            addCandidate(store, candidateFromGithubItem(it, 'github:dsh-plugin-hub'));
+            ghFullSlugs.add(it.full_name.toLowerCase());
+            n++;
+          }
+        }
       }
       log(`[github-full] 复用缓存分片 ${n} 条`);
     }
@@ -1758,27 +2093,56 @@ async function main() {
   const plugins = [];
   for (const rec of store.records) {
     const p = finalizeRecord(rec, crawlTime);
-    if (!p) { stats.output.skipped_no_id++; continue; }
+    if (!p) {
+      stats.output.skipped_no_id++;
+      continue;
+    }
     plugins.push(p);
   }
   // 保险：按 id 再兜底去重（理论上前面的索引已保证唯一）
   const byId = new Map();
   for (const p of plugins) {
     const prev = byId.get(p.id);
-    if (!prev) { byId.set(p.id, p); continue; }
+    if (!prev) {
+      byId.set(p.id, p);
+      continue;
+    }
     prev.markets = sortMarkets([...prev.markets, ...p.markets]);
-    for (const k of ['keywords', 'provides', 'tools', 'deps_dsh', 'capabilities', 'catalog_capabilities', 'capability_red_lines']) {
+    for (const k of [
+      'keywords',
+      'provides',
+      'tools',
+      'deps_dsh',
+      'capabilities',
+      'catalog_capabilities',
+      'capability_red_lines',
+    ]) {
       prev[k] = uniq([...(prev[k] || []), ...(p[k] || [])]);
     }
     for (const k of Object.keys(p)) {
-      if (['id', 'markets', 'keywords', 'provides', 'tools', 'deps_dsh', 'capabilities', 'catalog_capabilities', 'capability_red_lines'].includes(k)) continue;
+      if (
+        [
+          'id',
+          'markets',
+          'keywords',
+          'provides',
+          'tools',
+          'deps_dsh',
+          'capabilities',
+          'catalog_capabilities',
+          'capability_red_lines',
+        ].includes(k)
+      )
+        continue;
       if (isEmptyValue(prev[k]) && !isEmptyValue(p[k])) prev[k] = p[k];
     }
   }
   const finalPlugins = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
   stats.output.with_npm = finalPlugins.filter((p) => p.package).length;
   stats.output.github_only = finalPlugins.length - stats.output.with_npm;
-  log(`[merge] 合并去重后 ${finalPlugins.length} 个插件（npm 包 ${stats.output.with_npm}，仅 GitHub ${stats.output.github_only}）`);
+  log(
+    `[merge] 合并去重后 ${finalPlugins.length} 个插件（npm 包 ${stats.output.with_npm}，仅 GitHub ${stats.output.github_only}）`,
+  );
 
   // ── README（按 (downloads, stars) 取前 README_LIMIT）──────────────────────
   const ranked = rankForReadme(finalPlugins);
@@ -1817,12 +2181,23 @@ async function main() {
   }
 
   // ── 自动分析：有 data/work 分析结果时增量 merge 并通知 web 重新加载 ──────────
-  if (ARGS.noAnalyze) { log('[analyze] --no-analyze：跳过自动 merge/reload'); return; }
+  if (ARGS.noAnalyze) {
+    log('[analyze] --no-analyze：跳过自动 merge/reload');
+    return;
+  }
   runAnalysisAfterCrawl();
 }
 
-main().catch((e) => {
-  console.error('[fatal]', redact(e?.stack || e));
-  try { flushState(); } catch { /* ignore */ }
-  process.exitCode = 1;
-});
+main()
+  .catch((e) => {
+    console.error('[fatal]', redact(e?.stack || e));
+    try {
+      flushState();
+    } catch {
+      /* ignore */
+    }
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    if (ARGS.keepRaw) fs.rmSync(path.join(DATA_DIR, '.tmp-raw'), { recursive: true, force: true });
+  });

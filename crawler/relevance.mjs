@@ -13,11 +13,10 @@
 // 只作用于 github_only 记录；市场插件（npm / awesome 目录 / 官方 inventory）永远保留。
 import fs from 'node:fs';
 import path from 'node:path';
+import { readReadme } from './lib/store.mjs';
+import { STRONG_RE, MEDIUM_RE, ECO_RE, SPAM_RE } from './lib/signals.mjs';
 
-export const STRONG_RE = /deepseek[ _-]?harness|@deepseek-ai\/|\bdsh[ _-]plugins?\b|dsh-run\b|dsh\.ya?ml|~\/\.dsh|\.dsh\/|\bcordis\b|dsh headless|dsh-app-boot|dsh 插件|DSH插件/i;
-export const MEDIUM_RE = /\bdsh\b|deepseek/i;
-export const ECO_RE = /\bmcp\b|model context protocol|\bagents?\b|\bskills?\b|plugin|插件|技能|智能体|\bllm\b|claude|codex|copilot|opencode/i;
-export const SPAM_RE = /download .{0,40}(installer|setup|crack|keygen)|free download|mirror links?|activation key|license key generator|\bcracked?\b|\bkeygen\b|torrent/i;
+export { STRONG_RE, MEDIUM_RE, ECO_RE, SPAM_RE, README_SIGNAL_PATTERNS } from './lib/signals.mjs';
 export const REL_THRESHOLD_FILTER = 0.8;
 
 export function scoreRelevance(p, readme = '') {
@@ -53,9 +52,9 @@ export function scoreRelevance(p, readme = '') {
 
 export function readReadmeFor(root, p, max = 30000) {
   if (!p.readme_path) return '';
-  const f = path.resolve(root, String(p.readme_path).replace(/^\.?\//, ''));
-  if (!f.startsWith(path.resolve(root) + path.sep)) return '';
-  try { const fd = fs.openSync(f, 'r'); const b = Buffer.alloc(max); const n = fs.readSync(fd, b, 0, max, 0); fs.closeSync(fd); return b.subarray(0, n).toString('utf8'); } catch { return ''; }
+  const dir = path.resolve(process.env.ATLAS_DATA_DIR || path.join(root, 'data'));
+  const text = readReadme(p.readme_path, dir);
+  return text == null ? '' : Buffer.from(text).subarray(0, max).toString('utf8');
 }
 
 export function relevancePrompt(relIn, relOut, ids, attempt, lastErr) {
@@ -72,14 +71,28 @@ ${attempt > 1 && lastErr ? `上一次输出有问题：${lastErr}。这次务必
 }
 
 export function relevanceBlock(p, readme, sc) {
-  const clean = (x) => String(x || '').replace(/\s+/g, ' ').trim();
+  const clean = (x) =>
+    String(x || '')
+      .replace(/\s+/g, ' ')
+      .trim();
   const lines = [`## ${p.id}`, `name: ${clean(p.name)}`, `repo: ${clean(p.repo)}`];
   if (p.homepage) lines.push(`homepage: ${clean(p.homepage)}`);
   if ((p.keywords || []).length) lines.push(`topics: ${(p.keywords || []).slice(0, 15).map(clean).join(', ')}`);
-  lines.push(`stars: ${p.stars ?? '?'}  updated: ${p.updated_at || '?'}${p.gh_archived ? '  archived' : ''}${p.gh_fork ? '  fork' : ''}`);
+  lines.push(
+    `stars: ${p.stars ?? '?'}  updated: ${p.updated_at || '?'}${p.gh_archived ? '  archived' : ''}${p.gh_fork ? '  fork' : ''}`,
+  );
   lines.push(`description: ${clean(p.description).slice(0, 400) || '（无）'}`);
-  lines.push(`rule_signals: score=${sc.score} ${Object.entries(sc.signals).filter(([, v]) => v).map(([k]) => k).join(',')}`);
-  const r = clean(String(readme || '').replace(/<[^>]+>/g, ' ').replace(/!\[[^\]]*\]\([^)]*\)/g, '')).slice(0, 1200);
+  lines.push(
+    `rule_signals: score=${sc.score} ${Object.entries(sc.signals)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+      .join(',')}`,
+  );
+  const r = clean(
+    String(readme || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ''),
+  ).slice(0, 1200);
   lines.push(`readme_excerpt: ${r || '（无 README）'}`, '');
   return lines.join('\n');
 }
@@ -88,33 +101,94 @@ export function validateRelevance(parsed, ids) {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, error: '顶层不是 JSON 对象' };
   const fixed = {};
   const want = new Set(ids);
-  for (const [k, v] of Object.entries(parsed)) { let key = k.trim(); if (!want.has(key) && want.has('github:' + key)) key = 'github:' + key; fixed[key] = v; }
-  const data = {}; const missing = [];
+  for (const [k, v] of Object.entries(parsed)) {
+    let key = k.trim();
+    if (!want.has(key) && want.has('github:' + key)) key = 'github:' + key;
+    fixed[key] = v;
+  }
+  const data = {};
+  const missing = [];
   for (const id of ids) {
     const v = fixed[id];
-    const verdict = v && typeof v === 'object' ? String(v.verdict || '').toLowerCase().trim() : '';
-    if (!['relevant', 'irrelevant', 'uncertain'].includes(verdict)) { missing.push(id); continue; }
-    let c = Number(v.confidence); if (!Number.isFinite(c)) c = 0.5; c = Math.max(0, Math.min(1, c));
-    data[id] = { verdict, confidence: Math.round(c * 100) / 100, reason: String(v.reason || '').replace(/\s+/g, ' ').trim().slice(0, 120) };
+    const verdict =
+      v && typeof v === 'object'
+        ? String(v.verdict || '')
+            .toLowerCase()
+            .trim()
+        : '';
+    if (!['relevant', 'irrelevant', 'uncertain'].includes(verdict)) {
+      missing.push(id);
+      continue;
+    }
+    let c = Number(v.confidence);
+    if (!Number.isFinite(c)) c = 0.5;
+    c = Math.max(0, Math.min(1, c));
+    data[id] = {
+      verdict,
+      confidence: Math.round(c * 100) / 100,
+      reason: String(v.reason || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120),
+    };
   }
-  return { ok: Object.keys(data).length > 0, data, missing, error: missing.length ? `有 ${missing.length}/${ids.length} 条缺少合法 verdict` : '' };
+  return {
+    ok: Object.keys(data).length > 0,
+    data,
+    missing,
+    error: missing.length ? `有 ${missing.length}/${ids.length} 条缺少合法 verdict` : '',
+  };
 }
 
 export function loadRelevanceVerdicts(workDir) {
   const dir = path.join(workDir, 'relevance');
-  const out = new Map(); const invalid = [];
-  let files = []; try { files = fs.readdirSync(dir).filter((f) => /^r\d+\.out\.json$/.test(f)).sort(); } catch { /* none */ }
+  const out = new Map();
+  const invalid = [];
+  let files = [];
+  try {
+    files = fs
+      .readdirSync(dir)
+      .filter((f) => /^r\d+\.out\.json$/.test(f))
+      .sort();
+  } catch {
+    /* none */
+  }
   for (const f of files) {
-    let o; try { o = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch { invalid.push(f.replace('.out.json', '')); continue; }
+    let o;
+    try {
+      o = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    } catch {
+      invalid.push(f.replace('.out.json', ''));
+      continue;
+    }
     let n = 0;
-    for (const [id, v] of Object.entries(o || {})) if (v && ['relevant', 'irrelevant', 'uncertain'].includes(v.verdict)) { out.set(id, { ...v, batch: f.replace('.out.json', '') }); n++; }
+    for (const [id, v] of Object.entries(o || {}))
+      if (v && ['relevant', 'irrelevant', 'uncertain'].includes(v.verdict)) {
+        out.set(id, { ...v, batch: f.replace('.out.json', '') });
+        n++;
+      }
     if (!n) invalid.push(f.replace('.out.json', ''));
+  }
+  // The consolidated cache takes precedence over older batch outputs.
+  try {
+    const merged = JSON.parse(
+      fs.readFileSync(path.join(path.dirname(workDir), 'cache', 'relevance-verdicts.json'), 'utf8'),
+    );
+    for (const [id, v] of Object.entries(merged))
+      if (v && ['relevant', 'irrelevant', 'uncertain'].includes(v.verdict)) out.set(id, v);
+  } catch {
+    /* absent or invalid */
   }
   return { verdicts: out, invalid };
 }
 
 export function loadOverrides(dataDir) {
-  try { const o = JSON.parse(fs.readFileSync(path.join(dataDir, 'relevance-overrides.json'), 'utf8')); return { keep: new Set(o.keep || []), drop: new Set(o.drop || []) }; } catch { return { keep: new Set(), drop: new Set() }; }
+  try {
+    const o = JSON.parse(fs.readFileSync(path.join(dataDir, 'relevance-overrides.json'), 'utf8'));
+    return { keep: new Set(o.keep || []), drop: new Set(o.drop || []) };
+  } catch {
+    return { keep: new Set(), drop: new Set() };
+  }
 }
 
 /**
@@ -122,28 +196,78 @@ export function loadOverrides(dataDir) {
  * 返回 { kept, filtered, stats }；kept 里 github_only 记录带 relevance / relevance_score / relevance_reason
  */
 export function applyRelevance(plugins, { isGithubOnly, readmeOf, verdicts, overrides, generatedAt }) {
-  const kept = []; const filtered = [];
-  const stats = { github_only_checked: 0, rule_relevant: 0, llm_reviewed: 0, llm_relevant: 0, llm_irrelevant: 0, llm_uncertain: 0, llm_missing: 0, filtered_out: 0, suspect: 0, override_keep: 0, override_drop: 0 };
+  const kept = [];
+  const filtered = [];
+  const stats = {
+    github_only_checked: 0,
+    rule_relevant: 0,
+    llm_reviewed: 0,
+    llm_relevant: 0,
+    llm_irrelevant: 0,
+    llm_uncertain: 0,
+    llm_missing: 0,
+    filtered_out: 0,
+    suspect: 0,
+    override_keep: 0,
+    override_drop: 0,
+  };
   for (const p of plugins) {
-    if (!isGithubOnly(p)) { kept.push(p); continue; }
+    if (!isGithubOnly(p)) {
+      kept.push(p);
+      continue;
+    }
     stats.github_only_checked++;
     const sc = scoreRelevance(p, readmeOf(p));
-    let relevance = 'relevant'; let reason = ''; let source = 'rule';
+    let relevance = 'relevant';
+    let reason = '';
+    let source = 'rule';
     const v = verdicts.get(p.id);
-    if (sc.band === 'relevant') { stats.rule_relevant++; reason = '规则：命中 DeepSeek Harness/DSH 强信号'; }
-    else if (!v) { stats.llm_missing++; relevance = 'suspect'; reason = '规则信号弱，模型判定缺失'; source = 'rule'; }
-    else {
-      stats.llm_reviewed++; source = 'gpt-6.1-terra'; reason = v.reason || '';
-      if (v.verdict === 'relevant') { stats.llm_relevant++; relevance = 'relevant'; }
-      else if (v.verdict === 'irrelevant') { stats.llm_irrelevant++; relevance = v.confidence >= REL_THRESHOLD_FILTER ? 'irrelevant' : 'suspect'; }
-      else { stats.llm_uncertain++; relevance = 'suspect'; }
+    if (sc.band === 'relevant') {
+      stats.rule_relevant++;
+      reason = '规则：命中 DeepSeek Harness/DSH 强信号';
+    } else if (!v) {
+      stats.llm_missing++;
+      relevance = 'suspect';
+      reason = '规则信号弱，模型判定缺失';
+      source = 'rule';
+    } else {
+      stats.llm_reviewed++;
+      source = 'gpt-6.1-terra';
+      reason = v.reason || '';
+      if (v.verdict === 'relevant') {
+        stats.llm_relevant++;
+        relevance = 'relevant';
+      } else if (v.verdict === 'irrelevant') {
+        stats.llm_irrelevant++;
+        relevance = v.confidence >= REL_THRESHOLD_FILTER ? 'irrelevant' : 'suspect';
+      } else {
+        stats.llm_uncertain++;
+        relevance = 'suspect';
+      }
     }
-    if (overrides.keep.has(p.id)) { stats.override_keep++; if (relevance === 'irrelevant') relevance = 'suspect'; source += '+override-keep'; }
-    if (overrides.drop.has(p.id)) { stats.override_drop++; relevance = 'irrelevant'; source += '+override-drop'; }
+    if (overrides.keep.has(p.id)) {
+      stats.override_keep++;
+      if (relevance === 'irrelevant') relevance = 'suspect';
+      source += '+override-keep';
+    }
+    if (overrides.drop.has(p.id)) {
+      stats.override_drop++;
+      relevance = 'irrelevant';
+      source += '+override-drop';
+    }
     const rec = { ...p, relevance, relevance_score: sc.score, relevance_reason: reason, relevance_source: source };
     if (relevance === 'irrelevant') {
       stats.filtered_out++;
-      filtered.push({ ...rec, filtered_at: generatedAt, filter_reason: reason, filter_score: sc.score, filter_confidence: v?.confidence ?? null, filter_signals: Object.entries(sc.signals).filter(([, x]) => x).map(([k]) => k) });
+      filtered.push({
+        ...rec,
+        filtered_at: generatedAt,
+        filter_reason: reason,
+        filter_score: sc.score,
+        filter_confidence: v?.confidence ?? null,
+        filter_signals: Object.entries(sc.signals)
+          .filter(([, x]) => x)
+          .map(([k]) => k),
+      });
       continue;
     }
     if (relevance === 'suspect') stats.suspect++;
@@ -159,9 +283,26 @@ if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url
   const target = path.join(dataDir, 'plugins.jsonl');
   const records = fs.readFileSync(target, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
   const verdicts = loadRelevanceVerdicts(path.join(dataDir, 'work'));
-  const result = applyRelevance(records, { isGithubOnly: isGithubOnlyRaw, readmeOf: p => { const rel = String(p.readme_path || '').replace(/^\.?\/?data\//, ''); try { return fs.readFileSync(path.join(dataDir, rel), 'utf8'); } catch { return ''; } }, verdicts: verdicts instanceof Map ? verdicts : (verdicts.verdicts || new Map()), overrides: loadOverrides(dataDir), generatedAt: new Date().toISOString() });
-  fs.writeFileSync(`${target}.tmp`, result.kept.map(x => JSON.stringify(x)).join('\n') + '\n'); fs.renameSync(`${target}.tmp`, target);
-  fs.writeFileSync(path.join(dataDir, 'relevance-candidates.jsonl'), result.kept.filter(x => x.relevance === 'suspect').map(x => JSON.stringify({ id: x.id, reason: x.relevance_reason })).join('\n') + '\n');
-  if (result.filtered.length) fs.appendFileSync(path.join(dataDir, 'filtered-out.jsonl'), result.filtered.map(x => JSON.stringify(x)).join('\n') + '\n');
+  const result = applyRelevance(records, {
+    isGithubOnly: isGithubOnlyRaw,
+    readmeOf: (p) => readReadme(p.readme_path, dataDir) || '',
+    verdicts: verdicts instanceof Map ? verdicts : verdicts.verdicts || new Map(),
+    overrides: loadOverrides(dataDir),
+    generatedAt: new Date().toISOString(),
+  });
+  fs.writeFileSync(`${target}.tmp`, result.kept.map((x) => JSON.stringify(x)).join('\n') + '\n');
+  fs.renameSync(`${target}.tmp`, target);
+  fs.writeFileSync(
+    path.join(dataDir, 'relevance-candidates.jsonl'),
+    result.kept
+      .filter((x) => x.relevance === 'suspect')
+      .map((x) => JSON.stringify({ id: x.id, reason: x.relevance_reason }))
+      .join('\n') + '\n',
+  );
+  if (result.filtered.length)
+    fs.appendFileSync(
+      path.join(dataDir, 'filtered-out.jsonl'),
+      result.filtered.map((x) => JSON.stringify(x)).join('\n') + '\n',
+    );
   console.log(JSON.stringify(result.stats));
 }

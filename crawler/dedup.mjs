@@ -13,26 +13,41 @@
 // keywords 并集、markets 并集（保留来源），并在 merged_from 里记录 {id, markets, rule, key}。
 import fs from 'node:fs';
 import path from 'node:path';
+import { readRaw, listRaw } from './lib/store.mjs';
 
 export function repoKey(input) {
   if (!input || typeof input !== 'string') return null;
   let s = input.trim();
   if (!s) return null;
   if (/^github:/i.test(s)) s = s.slice(7);
-  s = s.replace(/^git\+/i, '').replace(/^(?:https?|git|ssh):\/\//i, '').replace(/^git@github\.com[:/]/i, 'github.com/').replace(/^www\./i, '');
+  s = s
+    .replace(/^git\+/i, '')
+    .replace(/^(?:https?|git|ssh):\/\//i, '')
+    .replace(/^git@github\.com[:/]/i, 'github.com/')
+    .replace(/^www\./i, '');
   s = s.split('#')[0].split('?')[0];
   let m = s.match(/^github\.com\/([^/\s]+)\/([^/\s]+)/i);
   if (!m && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/.test(s)) m = [null, ...s.replace(/\/$/, '').split('/')];
   if (!m) return null;
   const owner = m[1].toLowerCase();
-  const name = m[2].toLowerCase().replace(/\/+$/, '').replace(/\.git$/, '');
+  const name = m[2]
+    .toLowerCase()
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '');
   if (!owner || !name) return null;
   return `${owner}/${name}`;
 }
 
-const isGithubOnlyRaw = (p) => !p.package && !(p.markets || []).includes('index:awesome-dsh-plugin') && !(p.markets || []).some((m) => String(m).startsWith('inventory:'));
+const isGithubOnlyRaw = (p) =>
+  !p.package &&
+  !(p.markets || []).includes('index:awesome-dsh-plugin') &&
+  !(p.markets || []).some((m) => String(m).startsWith('inventory:'));
 const uniq = (a) => [...new Set(a.filter((x) => x != null && x !== ''))];
-const unscoped = (pkg) => String(pkg || '').split('/').pop().toLowerCase();
+const unscoped = (pkg) =>
+  String(pkg || '')
+    .split('/')
+    .pop()
+    .toLowerCase();
 const keyOfRecord = (p) => repoKey(p.repo) || (String(p.id).startsWith('github:') ? repoKey(p.id) : null);
 
 /** 读取本地 GitHub 缓存，得到 alias 键 -> 规范键（改名/转移）以及 键 -> 仓库 homepage */
@@ -40,29 +55,45 @@ export function loadGithubAliases(dataDir) {
   const alias = new Map();
   const homepage = new Map();
   const byNumeric = new Map();
-  const reposDir = path.join(dataDir, 'raw', 'github', 'repos');
-  const fullDir = path.join(dataDir, 'raw', 'github', 'full');
-  const walk = (d) => { let out = []; try { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) out = out.concat(walk(f)); else if (e.name.endsWith('.json')) out.push(f); } } catch { /* none */ } return out; };
-  for (const f of walk(fullDir)) {
-    let doc; try { doc = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { continue; }
+  const get = (key) => {
+    try {
+      return JSON.parse(
+        readRaw(key, dataDir)?.body ?? fs.readFileSync(path.join(dataDir, key.replace(/^data\//, '')), 'utf8'),
+      );
+    } catch {
+      return null;
+    }
+  };
+  for (const key of listRaw('data/raw/github/full/', dataDir).filter((k) => k.endsWith('.json'))) {
+    const doc = get(key);
     for (const it of doc?.items || []) {
-      const k = repoKey(it.full_name); if (!k) continue;
+      const k = repoKey(it.full_name);
+      if (!k) continue;
       if (it.homepage) homepage.set(k, String(it.homepage));
       if (it.id != null) byNumeric.set(it.id, k);
     }
   }
-  let files = []; try { files = fs.readdirSync(reposDir).filter((x) => x.endsWith('.json')); } catch { /* none */ }
-  for (const f of files) {
-    let d; try { d = JSON.parse(fs.readFileSync(path.join(reposDir, f), 'utf8')); } catch { continue; }
+  for (const key of listRaw('data/raw/github/repos/', dataDir).filter((k) => k.endsWith('.json'))) {
+    const d = get(key);
+    const f = path.basename(key);
     if (!d || typeof d !== 'object' || !d.full_name) continue;
     const requested = repoKey(f.slice(0, -5).replace('__', '/'));
     const actual = repoKey(d.full_name);
     if (actual && d.homepage && !homepage.has(actual)) homepage.set(actual, String(d.homepage));
     if (requested && actual && requested !== actual) alias.set(requested, actual);
-    if (d.id != null && byNumeric.has(d.id) && requested && byNumeric.get(d.id) !== requested) alias.set(requested, byNumeric.get(d.id));
+    if (d.id != null && byNumeric.has(d.id) && requested && byNumeric.get(d.id) !== requested)
+      alias.set(requested, byNumeric.get(d.id));
   }
   // 解析链式 alias
-  for (const [k] of alias) { let v = alias.get(k); const seen = new Set([k]); while (alias.has(v) && !seen.has(v)) { seen.add(v); v = alias.get(v); } alias.set(k, v); }
+  for (const [k] of alias) {
+    let v = alias.get(k);
+    const seen = new Set([k]);
+    while (alias.has(v) && !seen.has(v)) {
+      seen.add(v);
+      v = alias.get(v);
+    }
+    alias.set(k, v);
+  }
   return { alias, homepage };
 }
 
@@ -76,7 +107,10 @@ function absorb(target, src, rule, key) {
   for (const k of Object.keys(src)) if (k.startsWith('gh_') && target[k] == null) target[k] = src[k];
   target.keywords = uniq([...(target.keywords || []), ...(src.keywords || [])]);
   target.markets = uniq([...(target.markets || []), ...(src.markets || [])]);
-  target.merged_from = [...(target.merged_from || []), { id: src.id, markets: src.markets || [], repo: src.repo || null, rule, key }];
+  target.merged_from = [
+    ...(target.merged_from || []),
+    { id: src.id, markets: src.markets || [], repo: src.repo || null, rule, key },
+  ];
   if (!target.repo && src.repo) target.repo = src.repo;
 }
 
@@ -92,7 +126,10 @@ export function dedupPlugins(base, { dataDir } = {}) {
   const gonly = recs.filter((p) => isGithubOnlyRaw(p));
 
   // 市场插件索引
-  const mByRepo = new Map(); const mByHome = new Map(); const mByPkg = new Map(); const mByOwnerPkg = new Map();
+  const mByRepo = new Map();
+  const mByHome = new Map();
+  const mByPkg = new Map();
+  const mByOwnerPkg = new Map();
   for (const m of market) {
     const k = canon(keyOfRecord(m));
     if (k && !mByRepo.has(k)) mByRepo.set(k, m);
@@ -100,32 +137,69 @@ export function dedupPlugins(base, { dataDir } = {}) {
     if (hk && hk !== k && !mByHome.has(hk)) mByHome.set(hk, m);
     if (m.package) {
       mByPkg.set(m.package.toLowerCase(), m);
-      if (k) { const ok = `${k.split('/')[0]}/${unscoped(m.package)}`; if (ok !== k && !mByOwnerPkg.has(ok)) mByOwnerPkg.set(ok, m); }
+      if (k) {
+        const ok = `${k.split('/')[0]}/${unscoped(m.package)}`;
+        if (ok !== k && !mByOwnerPkg.has(ok)) mByOwnerPkg.set(ok, m);
+      }
     }
   }
   const merged = [];
-  const stats = { input: base.length, input_github_only: gonly.length, input_market: market.length, merged_into_market: 0, merged_github_aliases: 0, by_rule: {} };
-  const hit = (rule) => { stats.by_rule[rule] = (stats.by_rule[rule] || 0) + 1; };
+  const stats = {
+    input: base.length,
+    input_github_only: gonly.length,
+    input_market: market.length,
+    merged_into_market: 0,
+    merged_github_aliases: 0,
+    by_rule: {},
+  };
+  const hit = (rule) => {
+    stats.by_rule[rule] = (stats.by_rule[rule] || 0) + 1;
+  };
   const keepG = new Map(); // 规范键 -> 保留的 github_only 记录
   const gSorted = gonly.slice().sort((a, b) => {
     // 规范键与自身键一致（即非旧名）的优先作为保留记录
-    const ca = keyOfRecord(a) === canon(keyOfRecord(a)) ? 0 : 1; const cb = keyOfRecord(b) === canon(keyOfRecord(b)) ? 0 : 1;
+    const ca = keyOfRecord(a) === canon(keyOfRecord(a)) ? 0 : 1;
+    const cb = keyOfRecord(b) === canon(keyOfRecord(b)) ? 0 : 1;
     return ca - cb || String(a.id).localeCompare(String(b.id));
   });
   for (const g of gSorted) {
-    const own = keyOfRecord(g); const k = canon(own);
-    let target = null; let rule = null;
-    if (k && mByRepo.has(k)) { target = mByRepo.get(k); rule = (own !== k || keyOfRecord(target) !== k) ? 'rename' : 'repo'; }
-    else if (k && mByHome.has(k)) { target = mByHome.get(k); rule = 'homepage'; }
-    else if (k) {
+    const own = keyOfRecord(g);
+    const k = canon(own);
+    let target = null;
+    let rule = null;
+    if (k && mByRepo.has(k)) {
+      target = mByRepo.get(k);
+      rule = own !== k || keyOfRecord(target) !== k ? 'rename' : 'repo';
+    } else if (k && mByHome.has(k)) {
+      target = mByHome.get(k);
+      rule = 'homepage';
+    } else if (k) {
       const hp = homepage.get(k) || homepage.get(own) || '';
       const nm = hp.match(/npmjs\.(?:com|org)\/(?:package\/)?((?:@[^/]+\/)?[^/?#\s]+)/i);
       const m = nm ? mByPkg.get(nm[1].toLowerCase()) : null;
-      if (m && (!keyOfRecord(m) || unscoped(m.package) === k.split('/')[1])) { target = m; rule = 'homepage'; }
-      else if (mByOwnerPkg.has(k)) { target = mByOwnerPkg.get(k); rule = 'owner+name'; }
+      if (m && (!keyOfRecord(m) || unscoped(m.package) === k.split('/')[1])) {
+        target = m;
+        rule = 'homepage';
+      } else if (mByOwnerPkg.has(k)) {
+        target = mByOwnerPkg.get(k);
+        rule = 'owner+name';
+      }
     }
-    if (target) { absorb(target, g, rule, k); merged.push({ id: g.id, into: target.id, rule, key: k }); stats.merged_into_market++; hit(rule); continue; }
-    if (k && keepG.has(k)) { const t = keepG.get(k); absorb(t, g, own !== k ? 'rename' : 'repo', k); merged.push({ id: g.id, into: t.id, rule: own !== k ? 'rename' : 'repo', key: k }); stats.merged_github_aliases++; hit('github-alias'); continue; }
+    if (target) {
+      absorb(target, g, rule, k);
+      merged.push({ id: g.id, into: target.id, rule, key: k });
+      stats.merged_into_market++;
+      hit(rule);
+      continue;
+    }
+    if (k && keepG.has(k)) {
+      const t = keepG.get(k);
+      absorb(t, g, own !== k ? 'rename' : 'repo', k);
+      merged.push({ id: g.id, into: t.id, rule: own !== k ? 'rename' : 'repo', key: k });
+      stats.merged_github_aliases++;
+      hit('github-alias');
+      continue;
+    }
     if (k) keepG.set(k, g);
   }
   const dropped = new Set(merged.map((m) => m.id));
@@ -141,11 +215,13 @@ export { isGithubOnlyRaw };
 
 // Standalone incremental maintenance entry point; imports remain side-effect free.
 if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
-  const dataDir = path.resolve(process.env.ATLAS_DATA_DIR || path.join(process.env.ATLAS_ROOT || process.cwd(), 'data'));
+  const dataDir = path.resolve(
+    process.env.ATLAS_DATA_DIR || path.join(process.env.ATLAS_ROOT || process.cwd(), 'data'),
+  );
   const target = path.join(dataDir, 'plugins.jsonl');
   const records = fs.readFileSync(target, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
   const result = dedupPlugins(records, { dataDir });
-  fs.writeFileSync(`${target}.tmp`, result.plugins.map(x => JSON.stringify(x)).join('\n') + '\n');
+  fs.writeFileSync(`${target}.tmp`, result.plugins.map((x) => JSON.stringify(x)).join('\n') + '\n');
   fs.renameSync(`${target}.tmp`, target);
   console.log(JSON.stringify(result.stats));
 }

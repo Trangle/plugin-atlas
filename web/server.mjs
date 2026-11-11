@@ -560,6 +560,15 @@ function apiNode(s, n) {
   return { ...rest, plugin_ids: ids };
 }
 async function treeIndex(s) {
+  const files = await Promise.all(
+    ['graph.json', 'plugins.jsonl'].map((name) => fs.promises.stat(path.join(s.dir, name))),
+  );
+  const version = files.map((file) => `${file.mtimeMs}:${file.size}`).join('|');
+  if (s.treeIndexVersion !== version) {
+    s.treeIndexVersion = version;
+    s.treeIndexPromise = null;
+    s.fusionPromise = null;
+  }
   if (!s.treeIndexPromise)
     s.treeIndexPromise = import('../dsh-plugin/lib/pipeline/plan.mjs').then(({ loadIndex }) =>
       loadIndex({ dataDir: s.dir }),
@@ -655,6 +664,28 @@ async function treeApi(u, s = state) {
     return { matches };
   }
   const plans = await plansFor(s, index);
+  if (route === '/api/branch-graph') {
+    const { planTreeSync } = await import('../dsh-plugin/lib/tree/fusion.mjs');
+    const { listFamilies, resolveFamily } = await import('../dsh-plugin/lib/tree/families.mjs');
+    const { buildBranchGraph } = await import('../dsh-plugin/lib/tree/branch-graph.mjs');
+    if (!s.fusionPromise)
+      s.fusionPromise = Promise.resolve().then(() =>
+        planTreeSync({
+          graph: { nodes: [...index.nodes.values()] },
+          plugins: [...index.plugins.values()],
+          capabilities: index.capabilities,
+        }),
+      );
+    const fusion = await s.fusionPromise;
+    const familyId = u.searchParams.get('family');
+    const family = listFamilies(index, { fusion }).find((f) => f.id === familyId) || resolveFamily(index, familyId);
+    if (!family) return null;
+    return buildBranchGraph(index, family, {
+      fusion,
+      plan: plans.find((p) => p.family === family.id),
+      expand: u.searchParams.get('expand') === '1',
+    });
+  }
   if (route === '/api/plan') {
     const plan = plans.find((p) => p.family === id);
     return plan
@@ -913,7 +944,7 @@ const server = http.createServer(async (req, res) => {
       return send(200, await reload());
     }
     if (u.pathname.startsWith('/api/') && !state) return send(503, { error: 'loading' });
-    if (['/api/tree-node', '/api/tree-find', '/api/families', '/api/plan'].includes(u.pathname)) {
+    if (['/api/tree-node', '/api/tree-find', '/api/families', '/api/plan', '/api/branch-graph'].includes(u.pathname)) {
       if (req.method !== 'GET') return send(405, { error: 'GET' });
       const result = await treeApi(u);
       return send(

@@ -74,6 +74,12 @@ try {
   assert.equal(all.status, 200);
   summary = (await request('/api/families?summary=1')).body;
   assert.equal(summary.families, all.body.families.length);
+  const graphFamily = all.body.families.find((f) => f.members.length);
+  const branchGraph = await request(`/api/branch-graph?family=${encodeURIComponent(graphFamily.id)}&expand=1`);
+  assert.equal(branchGraph.status, 200);
+  assert.equal(branchGraph.body.family, graphFamily.id);
+  assert.equal(branchGraph.body.nodes.length, graphFamily.members.length);
+  assert.equal((await request('/api/branch-graph?family=missing')).status, 404);
   assert.equal(summary.computing, false);
   const branch = await request('/api/families?branch=web');
   assert.deepEqual(

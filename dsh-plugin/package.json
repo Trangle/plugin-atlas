@@ -1,16 +1,64 @@
 {
   "name": "dsh-plugin-atlas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DeepSeek Harness Plugin Atlas integration",
   "type": "module",
   "main": "./index.js",
-  "exports": { ".": "./index.js", "./commands": "./commands.js", "./package.json": "./package.json" },
-  "files": ["index.js", "commands.js", "lib/", "cordis.patch.yml", "README.md", "LICENSE"],
-  "keywords": ["dsh", "dsh-plugin", "deepseek-harness"],
-  "engines": { "node": ">=22", "dsh": ">=0.2.1-rc.2 <0.3.0" },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
-  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.5", "@deepseek-ai/dsh-tools": ">=0.2.1-rc.2 <0.3.0", "@deepseek-ai/dsh-commands": ">=0.2.1-rc.2 <0.3.0" },
-  "peerDependenciesMeta": { "@deepseek-ai/dsh-commands": { "optional": true } },
-  "scripts": { "test": "node test/selftest.mjs" },
-  "license": "MIT"
+  "exports": {
+    ".": "./index.js",
+    "./commands": "./commands.js",
+    "./package.json": "./package.json",
+    "./client": "./client.js"
+  },
+  "files": [
+    "index.js",
+    "commands.js",
+    "lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "client.js"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness"
+  ],
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-commands": ">=0.2.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-commands": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.mjs",
+    "build": "node client/build.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  }
 }

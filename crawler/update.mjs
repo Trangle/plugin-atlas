@@ -29,8 +29,9 @@ import { execFileSync } from 'node:child_process';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-const DATA_DIR = path.join(ROOT, 'data');
+const ROOT = path.resolve(process.env.ATLAS_ROOT || path.resolve(__dirname, '..'));
+const DATA_DIR = path.resolve(process.env.ATLAS_DATA_DIR || path.join(ROOT, 'data'));
+const atlasPath = file => String(file).replace(/^\.\//, '').startsWith('data/') ? path.join(DATA_DIR, String(file).replace(/^\.\/?data\//, '')) : path.join(ROOT, file);
 const RAW_DIR = path.join(DATA_DIR, 'raw');
 const READMES_DIR = path.join(DATA_DIR, 'readmes');
 const STATE_PATH = path.join(RAW_DIR, 'state.json');
@@ -309,7 +310,7 @@ async function request(url, { headers = {}, timeoutMs = 25000, retries = 1, maxB
  *  - 网络失败且已有缓存 → 回退旧缓存（stale）
  */
 async function fetchCached({ key, url, file, headers = {}, timeoutMs = 30000, retries = 1, maxBytes = 0 }) {
-  const abs = path.join(ROOT, file);
+  const abs = atlasPath(file);
   const meta = state.http[key] || null;
   const hasFile = exists(abs);
 
@@ -643,7 +644,7 @@ function loadInventory() {
   const marketId = 'inventory:dsh-official-on-demand';
   const t0 = Date.now();
   const cacheRel = 'data/raw/inventory/dsh-official-on-demand.json';
-  const cacheAbs = path.join(ROOT, cacheRel);
+  const cacheAbs = atlasPath(cacheRel);
   const found = findAppBoot();
   let entries = null;
   let dshVersion = null;
@@ -801,13 +802,13 @@ async function fetchGithubHub() {
     for (let page = 1; page <= GH_SEARCH_PAGES; page++) {
       const key = `github:search:${query.slug}:page-${page}`;
       const file = `data/raw/github/search/${query.slug}-p${page}.json`;
-      const hasCache = exists(path.join(ROOT, file));
+      const hasCache = exists(atlasPath(file));
 
       if (!ghRateOk()) {
         // 剩余额度不足：停止请求并记录；已有缓存仍然复用（保证重建数据完整）
         stoppedEarly = true;
         if (hasCache) {
-          const d = readJsonFile(path.join(ROOT, file), null);
+          const d = readJsonFile(atlasPath(file), null);
           if (d) {
             addItems(d);
             if (page === 1 && qTotal == null) qTotal = d.total_count ?? null;
@@ -1141,7 +1142,7 @@ function assignReadmeFiles(targets) {
 }
 
 async function readmeOne(p, fileRel) {
-  const abs = path.join(ROOT, fileRel);
+  const abs = atlasPath(fileRel);
   const prev = state.readmes[p.id];
   const verKey = p.version ?? null;
   const sameVersion = prev != null && String(prev.version ?? '') === String(verKey ?? '');
@@ -1331,7 +1332,7 @@ function applyPackageJson(p, pj) {
 async function pkgJsonOne(p) {
   const ver = p.version ?? null;
   const cacheRel = path.posix.join('data/raw/package-json', `${safeId(p.package)}@${safeId(ver || 'latest')}.json`);
-  const abs = path.join(ROOT, cacheRel);
+  const abs = atlasPath(cacheRel);
   const prev = state.pkgjs[p.id];
   const sameVersion = prev != null && String(prev.version ?? '') === String(ver ?? '');
 
@@ -1683,7 +1684,7 @@ function attachKnownReadmes(plugins) {
   for (const p of plugins) {
     if (p.readme_path) continue;
     const st = state.readmes[p.id];
-    if (st && st.status === 'ok' && st.path && exists(path.join(ROOT, st.path))) { p.readme_path = st.path; n++; }
+    if (st && st.status === 'ok' && st.path && exists(atlasPath(st.path))) { p.readme_path = st.path; n++; }
   }
   return n;
 }

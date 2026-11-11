@@ -117,6 +117,17 @@ const server = http.createServer(async (req, res) => {
   };
   try {
     const u = new URL(req.url, 'http://localhost');
+    const origin = req.headers.origin;
+    const loopbackOrigin = typeof origin === 'string' && /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/i.test(origin);
+    if (u.pathname.startsWith('/api/') && u.pathname !== '/api/reload' && loopbackOrigin && (req.method === 'GET' || (req.method === 'OPTIONS' && req.headers['access-control-request-method'] === 'GET'))) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.writeHead(204);
+        return res.end();
+      }
+    }
     if (u.pathname === '/api/status') return send(200, status());
     if (u.pathname === '/api/reload') {
       if (!['GET','POST'].includes(req.method)) return send(405, {error:'GET 或 POST'});

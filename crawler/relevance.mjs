@@ -151,3 +151,17 @@ export function applyRelevance(plugins, { isGithubOnly, readmeOf, verdicts, over
   }
   return { kept, filtered, stats };
 }
+
+if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+  const root = path.resolve(process.env.ATLAS_ROOT || process.cwd());
+  const dataDir = path.resolve(process.env.ATLAS_DATA_DIR || path.join(root, 'data'));
+  const { isGithubOnlyRaw } = await import('./dedup.mjs');
+  const target = path.join(dataDir, 'plugins.jsonl');
+  const records = fs.readFileSync(target, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+  const verdicts = loadRelevanceVerdicts(path.join(dataDir, 'work'));
+  const result = applyRelevance(records, { isGithubOnly: isGithubOnlyRaw, readmeOf: p => { const rel = String(p.readme_path || '').replace(/^\.?\/?data\//, ''); try { return fs.readFileSync(path.join(dataDir, rel), 'utf8'); } catch { return ''; } }, verdicts: verdicts instanceof Map ? verdicts : (verdicts.verdicts || new Map()), overrides: loadOverrides(dataDir), generatedAt: new Date().toISOString() });
+  fs.writeFileSync(`${target}.tmp`, result.kept.map(x => JSON.stringify(x)).join('\n') + '\n'); fs.renameSync(`${target}.tmp`, target);
+  fs.writeFileSync(path.join(dataDir, 'relevance-candidates.jsonl'), result.kept.filter(x => x.relevance === 'suspect').map(x => JSON.stringify({ id: x.id, reason: x.relevance_reason })).join('\n') + '\n');
+  if (result.filtered.length) fs.appendFileSync(path.join(dataDir, 'filtered-out.jsonl'), result.filtered.map(x => JSON.stringify(x)).join('\n') + '\n');
+  console.log(JSON.stringify(result.stats));
+}

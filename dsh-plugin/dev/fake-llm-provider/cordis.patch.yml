@@ -1,0 +1,3 @@
+- insert:
+    - id: atlas-fake-llm
+      name: dsh-atlas-fake-llm

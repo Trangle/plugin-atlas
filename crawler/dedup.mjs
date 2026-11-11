@@ -138,3 +138,14 @@ export function dedupPlugins(base, { dataDir } = {}) {
 }
 
 export { isGithubOnlyRaw };
+
+// Standalone incremental maintenance entry point; imports remain side-effect free.
+if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+  const dataDir = path.resolve(process.env.ATLAS_DATA_DIR || path.join(process.env.ATLAS_ROOT || process.cwd(), 'data'));
+  const target = path.join(dataDir, 'plugins.jsonl');
+  const records = fs.readFileSync(target, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+  const result = dedupPlugins(records, { dataDir });
+  fs.writeFileSync(`${target}.tmp`, result.plugins.map(x => JSON.stringify(x)).join('\n') + '\n');
+  fs.renameSync(`${target}.tmp`, target);
+  console.log(JSON.stringify(result.stats));
+}

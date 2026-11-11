@@ -3,9 +3,10 @@
 //   data/capabilities/<category_id>.json            -> plugins = all plugins with category_id
 //   data/capabilities/<category_id>/<branch_id>.json -> plugins = branch node subtree (graph.json plugin_ids)
 import fs from 'node:fs'; import path from 'node:path'; import { execFileSync } from 'node:child_process';
-const L = fs.readFileSync('data/plugins.jsonl', 'utf8').trim().split('\n').map(JSON.parse);
+const dataDir = process.env.ATLAS_DATA_DIR || path.join(process.env.ATLAS_ROOT || process.cwd(), 'data');
+const L = fs.readFileSync(path.join(dataDir, 'plugins.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
 const ids = new Set(L.map(p => p.id));
-const G = JSON.parse(fs.readFileSync('data/graph.json', 'utf8'));
+const G = JSON.parse(fs.readFileSync(path.join(dataDir, 'graph.json'), 'utf8'));
 const branchIds = new Map(G.nodes.filter(n => n.type === 'branch').map(n => [n.id, n.plugin_ids || []]));
 function fix(p, plugins) {
   const o = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -16,7 +17,7 @@ function fix(p, plugins) {
   fs.writeFileSync(t, JSON.stringify(o, null, 1)); fs.renameSync(t, p);
   return plugins.length;
 }
-const root = 'data/capabilities';
+const root = path.join(dataDir, 'capabilities');
 for (const f of fs.readdirSync(root)) {
   const full = path.join(root, f);
   if (f.startsWith('.')) continue;
@@ -31,4 +32,4 @@ for (const f of fs.readdirSync(root)) {
     console.log(c, fix(full, L.filter(x => x.category_id === c).map(x => x.id)));
   }
 }
-try { console.log(execFileSync('curl', ['-s', '--max-time', '200', '-X', 'POST', 'http://127.0.0.1:4380/api/reload'], { encoding: 'utf8' })); } catch (e) { console.warn('reload failed', e.message); }
+if (!process.env.ATLAS_DATA_DIR) try { console.log(execFileSync('curl', ['-s', '--max-time', '200', '-X', 'POST', 'http://127.0.0.1:4380/api/reload'], { encoding: 'utf8' })); } catch (e) { console.warn('reload failed', e.message); }

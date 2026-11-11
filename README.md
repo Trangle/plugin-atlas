@@ -150,33 +150,83 @@ curl -X POST localhost:4380/api/reload
 
 ## 作为 dsh 插件安装
 
-已在 dsh 0.2.1-rc.5 实测。`dsh-plugin/` 是 dsh 组合包：`package.json` 的 `dsh.bundle.patch` 指向 `cordis.patch.yml`，插入两个 Cordis 插件条目。
+`dsh-plugin/`（`dsh-plugin-atlas` 0.2.0）是一个自包含的 dsh 组合包，已在 dsh 0.2.1-rc.5 实测。它覆盖 采 / 提 / 召 / 比 / 更 全流水线，并在 dsh web 右侧栏提供 Plugin Atlas 面板。
 
-提供工具 `plugin_atlas_search(q, limit?, mode?, include_github_only?)`、`plugin_atlas_node(id)`、`plugin_atlas_status()`，以及斜杠命令 `/atlas <关键词>` 和 `/atlas-open`（在支持命令适配器的界面中使用，如 dsh web/tui）。工具通过本机 HTTP 调用 4380 端口的 `/api/status`、`/api/search` 和 `/api/node`；可通过插件 `config.baseUrl` 或环境变量 `PLUGIN_ATLAS_URL` 配置地址。服务未启动或正在加载时会返回明确提示。
+### 架构
 
-本版未实现 Web 右侧栏面板，尽管 dsh 的客户端插件机制支持该能力。可用 `/atlas-open` 或 `plugin_atlas_status` 获取网页地址，在浏览器中打开。
-
-先启动 `bash web/start.sh`，然后安装：
-
-```bash
-dsh plugin --profile headless add "file:$(pwd)/dsh-plugin"
-dsh plugin --profile headless list --depth 0
-dsh --profile headless --dump-config | grep -A3 plugin-atlas
-dsh --profile headless "用 plugin_atlas_search 搜索 memory，列出前 3 个插件"
+```
+dsh-plugin/
+├─ index.js            宿主插件：注册工具、skill、定时任务；注入 ctx.llm / agentDefaultModel（可选）
+├─ commands.js         命令插件：/atlas 子命令、/atlas-open
+├─ client.js           Web 客户端（由 client/src/index.jsx 经 esbuild 构建），注册 sidebar.right 面板
+├─ cordis.patch.yml    dsh.bundle.patch：插入上面两个 Cordis 插件条目
+└─ lib/
+   ├─ pipeline/        collect(采) · extract(提) · recall(召) · compare(比) · update(更) · service · status
+   ├─ model/           可插拔模型后端：llm（经 dsh 插件 API 调用当前主模型）、mock
+   ├─ budget.mjs       单次与累计 token 预算，按模型返回的 usage 记账
+   ├─ scheduler.mjs    定时增量刷新（`schedule.intervalMinutes`，默认 0 即关闭，默认 dry-run）
+   └─ tools.mjs / commands.mjs / skill.mjs
 ```
 
-使用 web profile 时将 `headless` 换成 `web`；可用 `link:` 代替 `file:` 建立开发链接。`file:` 是复制安装，修改插件代码后需要先卸载再重新添加：
+- 采：复用 `crawler/update.mjs` 增量采集。
+- 提：按 README 哈希 / 版本判断新增或变更的插件，只对这些插件生成摘要，结果写入状态目录的 overlay。
+- 召：调用本机服务的全文 + 语义混合搜索，服务不可用时退回本地全文。
+- 比：同分支同类插件比较、疑似重复与相似度、能力并集与 best_impl。
+- 更：增量合并 overlay，依次运行 `dedup.mjs`、`relevance.mjs`、`refresh-capabilities.mjs`，再让服务增量重建索引（嵌入按内容哈希缓存）。合并前自动备份 `data/`。
+- 模型调用只经过 dsh 插件 API：`ctx.llm.prepareCall(...)` + `call.stream(...)`，路由取自 `agentDefaultModel.currentSelection()`，不调用外部 CLI。支持 `--backend mock`、`--dry-run`、并发上限、按批次断点续跑（`--resume`）、token 预算上限（超出即停止并保存进度）和进度显示。
+- 插件自行管理 4380 服务：检测、启动、重新加载、查看日志。
+
+### 命令与工具
+
+| 命令 | 作用 |
+| --- | --- |
+| `/atlas update [--apply] [--offline] [--skip-github]` | 增量采集并合并 |
+| `/atlas refresh [--apply] [--limit N] [--backend mock]` | 采集 → 增量摘要 → 合并 |
+| `/atlas summarize --incremental [--limit N] [--dry-run] [--backend mock\|llm] [--budget N] [--concurrency N] [--resume id]` | 增量摘要 |
+| `/atlas merge [--apply] [--dry-run]` | 合并 overlay、去重、相关性、能力全集、重建索引 |
+| `/atlas status` | 服务、进度、预算、overlay 状态 |
+| `/atlas compare <id...>` / `/atlas compare --branch <id>` | 同类比较与疑似重复 |
+| `/atlas service start\|stop\|reload\|status` | 管理本机服务 |
+| `/atlas <关键词>` | 搜索 |
+| `/atlas-open` | 显示网页地址（面板从右侧栏标签页打开） |
+
+每个命令都有对应工具：`plugin_atlas_update`、`plugin_atlas_refresh`、`plugin_atlas_summarize`、`plugin_atlas_merge`、`plugin_atlas_pipeline_status`、`plugin_atlas_compare`、`plugin_atlas_service`，并保留 `plugin_atlas_search`、`plugin_atlas_node`、`plugin_atlas_status`。写入类操作默认是 dry-run，需显式 `--apply`。详见 [dsh-plugin/README.md](dsh-plugin/README.md)。
+
+### 右侧栏面板
+
+`package.json` 声明 `dsh.client`（platform `web`，注入 `@deepseek-ai/dsh-client-ui-sidebar-right`），客户端通过 `sidebarRightTabs.register` 注册 Plugin Atlas 标签页：显示服务状态、分类图谱、混合搜索和插件详情（安装命令、能力、同分支最佳实现）。
+
+| 图谱 | 搜索 | 详情 |
+| --- | --- | --- |
+| ![面板图谱](docs/dsh-panel-default.png) | ![面板搜索](docs/dsh-panel-search.png) | ![面板详情](docs/dsh-panel-detail.png) |
+
+### 安装
+
+先启动服务 `bash web/start.sh`（之后也可用 `/atlas service start`），然后：
 
 ```bash
-dsh plugin --profile headless remove dsh-plugin-atlas
+dsh plugin --profile web add "file:$(pwd)/dsh-plugin"
+dsh plugin --profile web list --depth 0
+dsh --profile web --dump-config | grep -A3 plugin-atlas
 ```
 
-无需模型和 dsh 即可自测；设置 `ATLAS_LIVE=1` 可额外查询本机服务：
+建议先在独立 profile 中试用，避免影响现有配置。`file:` 是复制安装，修改插件代码后需先卸载再添加：
 
 ```bash
-(cd dsh-plugin && node test/selftest.mjs)
-(cd dsh-plugin && ATLAS_LIVE=1 node test/selftest.mjs)
+dsh plugin --profile web remove dsh-plugin-atlas
 ```
+
+可在 `cordis.patch.yml` 或 profile 中设置插件配置：`root`（仓库路径）、`stateDir`、`baseUrl`（默认 `http://127.0.0.1:4380`，也可用 `PLUGIN_ATLAS_URL`）、`budgetTokens`。
+
+### 测试
+
+```bash
+(cd dsh-plugin && npm install && npm run build && npm test)   # 自测、流水线、客户端，不需要模型
+(cd dsh-plugin && ATLAS_LIVE=1 node test/selftest.mjs)        # 额外查询本机服务
+node web/test.mjs
+```
+
+`dsh-plugin/dev/fake-llm-provider/` 是仅供开发的本地假模型提供方（provider `atlas-fake`），用于在真实 dsh 运行时中验证 llm 后端链路而不消耗真实 token；它不随插件发布。
 
 ## 数据来源与免责声明
 

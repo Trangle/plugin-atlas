@@ -30,6 +30,91 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 var import_react = require("react");
+
+// ../web/public/branch-graph-view.js
+var esc = (s) => String(s ?? "").replace(
+  /[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+);
+function dateLabel(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  if (!Number.isFinite(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function renderBranchGraph(container, graph, options = {}) {
+  if (!container) return;
+  if (!graph || !graph.nodes?.length) {
+    container.innerHTML = '<div class="bg-empty">\u8FD9\u4E2A\u5206\u53C9\u65CF\u8FD8\u6CA1\u6709\u53EF\u7ED8\u5236\u7684\u5206\u652F\u3002</div>';
+    return;
+  }
+  const compact = !!options.compact;
+  const laneW = compact ? 18 : 22;
+  const rowH = compact ? 40 : 48;
+  const pad = compact ? 12 : 20;
+  const labelX = pad + graph.lanes * laneW + 14;
+  const labelW = compact ? 280 : 420;
+  const width = Math.max(labelX + labelW + pad, compact ? 340 : 560);
+  const height = pad * 2 + graph.rows * rowH;
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const cx = (lane) => pad + lane * laneW + 6;
+  const cy = (row) => pad + row * rowH + rowH / 2;
+  const tracks = [];
+  for (let lane = 0; lane < graph.lanes; lane++) {
+    const nodes = graph.nodes.filter((n) => n.lane === lane);
+    if (!nodes.length && lane !== 0) continue;
+    const y1 = lane === 0 ? pad : cy(Math.min(...nodes.map((n) => n.row)));
+    const y2 = lane === 0 ? height - pad : cy(Math.max(...nodes.map((n) => n.row)));
+    tracks.push(
+      `<line class="bg-track${lane === 0 ? " trunk" : ""}" x1="${cx(lane)}" y1="${y1}" x2="${cx(lane)}" y2="${y2}" />`
+    );
+  }
+  const edges = graph.edges.map((e) => {
+    const a = byId.get(e.from), b = byId.get(e.to);
+    if (!a || !b) return "";
+    const x1 = cx(a.lane), y1 = cy(a.row), x2 = cx(b.lane), y2 = cy(b.row);
+    const midY = e.type === "merge-suggest" ? (y1 + y2) / 2 : y1 + Math.min(18, (y2 - y1) / 2);
+    const d = e.type === "merge-suggest" ? `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}` : x1 === x2 ? `M ${x1} ${y1} L ${x2} ${y2}` : `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+    return `<path class="bg-edge ${esc(e.type)}" d="${d}" fill="none" />`;
+  });
+  const dots = [];
+  const labels = [];
+  for (const n of graph.nodes) {
+    const x = cx(n.lane), y = cy(n.row);
+    const status = n.status || "active";
+    const title = esc(n.label || n.id);
+    const diff = n.role === "trunk" || n.role === "collapsed" ? n.role === "collapsed" ? `<span class="bg-count">${n.count || 0}</span>` : '<span class="bg-role">\u4E3B\u5E72</span>' : `<span class="bg-diff" title="${esc((n.plusCaps || []).join("\u3001"))}"><span class="plus">+${n.plus || 0}</span></span><span class="bg-diff" title="${esc((n.minusCaps || []).join("\u3001"))}"><span class="minus">\u2212${n.minus || 0}</span></span>`;
+    const unique = compact ? "" : (n.unique || []).slice(0, 4).map((c) => `<span class="bg-cap">${esc(c)}</span>`).join("");
+    const selected = options.selectedId === n.id ? " selected" : "";
+    dots.push(
+      `<circle class="bg-dot ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" cx="${x}" cy="${y}" r="${n.role === "trunk" ? 6 : 5}" />`
+    );
+    labels.push(
+      `<div class="bg-label ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" style="left:${labelX}px;top:${y - rowH / 2}px;width:${labelW}px;height:${rowH}px">
+          <button type="button" class="bg-name" data-id="${esc(n.id)}" title="${title}">${title}</button>
+          <span class="bg-meta">${esc(dateLabel(n.time))}</span>
+          ${diff}
+          ${unique}
+        </div>`
+    );
+  }
+  const hidden = graph.truncated ? `<p class="bg-hint">\u5DF2\u6298\u53E0 ${graph.hidden} \u4E2A\u5206\u652F\u3002\u53EF\u5C55\u5F00\u5168\u90E8\uFF0C\u6216\u70B9\u51FB\u300C\u53E6 N \u4E2A\u5206\u652F\u300D\u67E5\u770B\u3002</p>` : "";
+  container.innerHTML = `${hidden}<div class="bg-scroll"><div class="bg-plot" style="width:${width}px;height:${height}px"><svg class="bg-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="\u5206\u53C9\u65CF ${esc(graph.family)} \u7684\u5206\u652F\u56FE">${tracks.join("")}${edges.join("")}${dots.join("")}</svg>${labels.join("")}</div></div>`;
+  const select = (id) => {
+    if (typeof options.onSelect === "function") options.onSelect(id);
+  };
+  container.querySelectorAll("[data-id]").forEach((el) => {
+    el.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      select(el.getAttribute("data-id"));
+    });
+  });
+}
+
+// client/src/index.jsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var inject = ["slots", "locale", "sidebarRight", "sidebarRightTabs"];
 function apply(ctx) {
@@ -94,7 +179,8 @@ function Icon({ name }) {
 }
 var styles = `
 .atlas-root{--bg:light-dark(#fff,#1c2225);--surface:light-dark(#f2f5f4,#273033);--text:light-dark(#202b2d,#edf4f2);--muted:light-dark(#536461,#b7c8c3);--line:light-dark(#ccd8d4,#465854);--accent:light-dark(#086e61,#79d8c4);--selected:light-dark(#dcefeb,#304b44);--ui:light-dark(#e1edf6,#263e4c);--tools:light-dark(#f4ead7,#493d29);--other:light-dark(#ecece6,#393e37);background:var(--bg);color:var(--text);font-family:var(--dsh-font-family-text,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif);font-size:var(--dsh-content-font-size,13px);line-height:1.45;height:100%;min-width:0;overflow:auto;padding:12px;box-sizing:border-box;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;scrollbar-color:var(--line) transparent;caret-color:var(--accent)}
-.atlas-root *{box-sizing:border-box}.atlas-root ::selection{background:var(--selected)}.atlas-root button,.atlas-root input,.atlas-root select{font:inherit;color:inherit;min-width:0}.atlas-root button,.atlas-root input:not([type=checkbox]),.atlas-root select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;min-height:32px}.atlas-root button{cursor:pointer;transition:background-color 150ms ease-out,color 150ms ease-out}.atlas-root button:hover{background:var(--surface)}.atlas-root button:active{background:var(--selected)}.atlas-root button:disabled{opacity:.55;cursor:not-allowed}.atlas-root :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.atlas-root input::placeholder{color:var(--muted);opacity:1}.atlas-root svg{width:16px;height:16px;flex:none}.atlas-root h2,.atlas-root h3,.atlas-root h4{line-height:1.3;margin:20px 0 8px}.atlas-root h2{font-size:16px}.atlas-root h3{font-size:14px}.atlas-root h4{font-size:13px}.atlas-root p{margin:8px 0}.atlas-root small,.atlas-muted{color:var(--muted)}.atlas-head{display:flex;align-items:center;gap:8px;min-width:0}.atlas-head strong{font-size:16px;white-space:nowrap}.atlas-head-status{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;font-size:12px}.atlas-count{margin-left:auto;white-space:nowrap;font-size:12px;color:var(--muted)}.atlas-dot{width:7px;height:7px;flex:none;border-radius:50%;background:light-dark(#9a5900,#f3c16f)}.atlas-dot.ready{background:light-dark(#08745c,#79d8b3)}.atlas-dot.offline{background:light-dark(#aa3535,#ffaaaa)}.atlas-icon-button{display:grid;place-items:center;padding:5px!important}.atlas-settings,.atlas-form{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.atlas-form input,.atlas-settings input{flex:1 1 130px}.atlas-tabs{display:flex;background:var(--surface);border-radius:8px;padding:3px;gap:3px;margin:16px 0}.atlas-tabs button{flex:1;border:0;background:transparent;min-width:0}.atlas-tabs button[aria-pressed=true]{background:var(--bg);color:var(--accent);font-weight:700}.atlas-chart-row{display:flex;align-items:center;gap:8px;height:24px;width:100%;text-align:left;border:0!important;padding:0 4px!important;min-height:0!important}.atlas-chart-label{flex:0 1 104px;min-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-chart-track{flex:1;min-width:0}.atlas-chart-bar{height:8px;border-radius:4px;background:var(--accent);opacity:.7}.atlas-chart-count{width:40px;text-align:right}.atlas-card{border:1px solid var(--line);border-radius:10px;padding:12px;margin:16px 0;min-width:0}.atlas-card h3:first-child{margin-top:0}.atlas-tree-row{display:flex;align-items:center;min-width:0;border-radius:6px}.atlas-tree-row.selected{background:var(--selected)}.atlas-tree-toggle{border:0!important;background:transparent!important;padding:4px!important;min-height:28px!important;display:grid;place-items:center}.atlas-tree-spacer{width:26px;flex:none}.atlas-tree-select{border:0!important;background:transparent!important;display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;padding:4px!important;min-height:28px!important}.atlas-tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-badge{display:inline-block;border-radius:4px;background:var(--other);padding:1px 5px;font-size:12px;line-height:1.5}.atlas-badge.ui{background:var(--ui)}.atlas-badge.tools{background:var(--tools)}.atlas-cap-list{display:flex;flex-wrap:wrap;gap:4px}.atlas-cap-group{margin-top:12px}.atlas-cap-group h4{margin:0 0 5px}.atlas-more{margin-top:5px}.atlas-family{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}.atlas-family h4{margin:0 0 6px}.atlas-code,.atlas-root pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.atlas-code{background:var(--surface);padding:8px;border-radius:6px;margin:8px 0}.atlas-row{display:block;width:100%;height:auto;text-align:left;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;padding:10px 4px!important}.atlas-snippet{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);margin-top:4px}.atlas-error{color:light-dark(#9d2828,#ffb5b5)}.atlas-root a{color:var(--accent);text-underline-offset:3px}.atlas-readme{max-height:240px;overflow:auto}.atlas-back{display:flex;align-items:center;gap:4px}.atlas-empty{padding:16px 0;color:var(--muted)}.atlas-skeleton span{display:block;height:12px;background:var(--surface);border-radius:4px;margin:12px 0}.atlas-skeleton span:nth-child(2){width:75%}.atlas-skeleton span:nth-child(3){width:50%}.atlas-find-results{border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto}.atlas-find-results button{border:0;border-radius:0;width:100%;text-align:left}.atlas-find-results small{display:block}.atlas-root details summary{cursor:pointer}.atlas-root label{display:block;margin:8px 0}@media(max-width:390px){.atlas-root{padding:10px}.atlas-head{gap:5px}.atlas-head strong{font-size:14px}.atlas-tree-row .atlas-badge{font-size:11px}}@media(prefers-reduced-motion:reduce){.atlas-root *{scroll-behavior:auto!important;transition:none!important}}`;
+.atlas-root *{box-sizing:border-box}.atlas-root ::selection{background:var(--selected)}.atlas-root button,.atlas-root input,.atlas-root select{font:inherit;color:inherit;min-width:0}.atlas-root button,.atlas-root input:not([type=checkbox]),.atlas-root select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;min-height:32px}.atlas-root button{cursor:pointer;transition:background-color 150ms ease-out,color 150ms ease-out}.atlas-root button:hover{background:var(--surface)}.atlas-root button:active{background:var(--selected)}.atlas-root button:disabled{opacity:.55;cursor:not-allowed}.atlas-root :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.atlas-root input::placeholder{color:var(--muted);opacity:1}.atlas-root svg:not(.bg-svg){width:16px;height:16px;flex:none}.atlas-root .bg-svg{width:auto;height:auto;max-width:none;flex:none}.atlas-root h2,.atlas-root h3,.atlas-root h4{line-height:1.3;margin:20px 0 8px}.atlas-root h2{font-size:16px}.atlas-root h3{font-size:14px}.atlas-root h4{font-size:13px}.atlas-root p{margin:8px 0}.atlas-root small,.atlas-muted{color:var(--muted)}.atlas-head{display:flex;align-items:center;gap:8px;min-width:0}.atlas-head strong{font-size:16px;white-space:nowrap}.atlas-head-status{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;font-size:12px}.atlas-count{margin-left:auto;white-space:nowrap;font-size:12px;color:var(--muted)}.atlas-dot{width:7px;height:7px;flex:none;border-radius:50%;background:light-dark(#9a5900,#f3c16f)}.atlas-dot.ready{background:light-dark(#08745c,#79d8b3)}.atlas-dot.offline{background:light-dark(#aa3535,#ffaaaa)}.atlas-icon-button{display:grid;place-items:center;padding:5px!important}.atlas-settings,.atlas-form{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.atlas-form input,.atlas-settings input{flex:1 1 130px}.atlas-tabs{display:flex;background:var(--surface);border-radius:8px;padding:3px;gap:3px;margin:16px 0}.atlas-tabs button{flex:1;border:0;background:transparent;min-width:0}.atlas-tabs button[aria-pressed=true]{background:var(--bg);color:var(--accent);font-weight:700}.atlas-chart-row{display:flex;align-items:center;gap:8px;height:24px;width:100%;text-align:left;border:0!important;padding:0 4px!important;min-height:0!important}.atlas-chart-label{flex:0 1 104px;min-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-chart-track{flex:1;min-width:0}.atlas-chart-bar{height:8px;border-radius:4px;background:var(--accent);opacity:.7}.atlas-chart-count{width:40px;text-align:right}.atlas-card{border:1px solid var(--line);border-radius:10px;padding:12px;margin:16px 0;min-width:0}.atlas-card h3:first-child{margin-top:0}.atlas-tree-row{display:flex;align-items:center;min-width:0;border-radius:6px}.atlas-tree-row.selected{background:var(--selected)}.atlas-tree-toggle{border:0!important;background:transparent!important;padding:4px!important;min-height:28px!important;display:grid;place-items:center}.atlas-tree-spacer{width:26px;flex:none}.atlas-tree-select{border:0!important;background:transparent!important;display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;padding:4px!important;min-height:28px!important}.atlas-tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-badge{display:inline-block;border-radius:4px;background:var(--other);padding:1px 5px;font-size:12px;line-height:1.5}.atlas-badge.ui{background:var(--ui)}.atlas-badge.tools{background:var(--tools)}.atlas-cap-list{display:flex;flex-wrap:wrap;gap:4px}.atlas-cap-group{margin-top:12px}.atlas-cap-group h4{margin:0 0 5px}.atlas-more{margin-top:5px}.atlas-family{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}.atlas-family h4{margin:0 0 6px}.atlas-code,.atlas-root pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.atlas-code{background:var(--surface);padding:8px;border-radius:6px;margin:8px 0}.atlas-row{display:block;width:100%;height:auto;text-align:left;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;padding:10px 4px!important}.atlas-snippet{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);margin-top:4px}.atlas-error{color:light-dark(#9d2828,#ffb5b5)}.atlas-root a{color:var(--accent);text-underline-offset:3px}.atlas-readme{max-height:240px;overflow:auto}.atlas-back{display:flex;align-items:center;gap:4px}.atlas-empty{padding:16px 0;color:var(--muted)}.atlas-skeleton span{display:block;height:12px;background:var(--surface);border-radius:4px;margin:12px 0}.atlas-skeleton span:nth-child(2){width:75%}.atlas-skeleton span:nth-child(3){width:50%}.atlas-find-results{border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto}.atlas-find-results button{border:0;border-radius:0;width:100%;text-align:left}.atlas-find-results small{display:block}.atlas-root details summary{cursor:pointer}.atlas-root label{display:block;margin:8px 0}.atlas-graph-toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}.atlas-graph-toolbar input{flex:1 1 140px}.atlas-graph .bg-scroll{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg)}.atlas-graph .bg-plot{position:relative}.atlas-graph .bg-svg{position:absolute;inset:0}.atlas-graph .bg-label{position:absolute;display:flex;align-items:center;gap:4px;overflow:hidden;font-size:12px;pointer-events:none}.atlas-graph .bg-name{pointer-events:auto;border:0!important;background:transparent!important;padding:0!important;min-height:0!important;border-radius:0!important;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.atlas-graph .bg-cap{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px;white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis}.atlas-graph .bg-diff{white-space:nowrap;flex:none}.atlas-graph .bg-diff .plus{color:var(--accent);font-weight:650}.atlas-graph .bg-diff .minus{color:light-dark(#9d2828,#ffb5b5);font-weight:650}.atlas-graph .bg-meta,.atlas-graph .bg-role,.atlas-graph .bg-count{color:var(--muted);font-size:11px;white-space:nowrap}.atlas-graph .bg-hint{color:var(--muted);margin:0 0 8px}.atlas-graph .bg-dot{fill:var(--accent);stroke:var(--bg);stroke-width:2}.atlas-graph .bg-dot.duplicate,.atlas-graph .bg-dot.dead{fill:var(--muted);opacity:.7}.atlas-graph .bg-dot.collapsed{fill:none;stroke:var(--muted);stroke-dasharray:2 2}.atlas-graph .bg-track{stroke:var(--line);stroke-width:1.5}.atlas-graph .bg-track.trunk{stroke:var(--accent);stroke-width:2;opacity:.55}.atlas-graph .bg-edge{stroke:var(--accent);stroke-width:1.75;fill:none}.atlas-graph .bg-edge.merge-suggest{stroke:var(--muted);stroke-dasharray:5 4;stroke-width:1.5}
+@media(max-width:390px){.atlas-root{padding:10px}.atlas-head{gap:5px}.atlas-head strong{font-size:14px}.atlas-tree-row .atlas-badge{font-size:11px}}@media(prefers-reduced-motion:reduce){.atlas-root *{scroll-behavior:auto!important;transition:none!important}}`;
 function EmptyState({ children }) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "atlas-empty", children });
 }
@@ -105,7 +191,7 @@ function Skeleton() {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {})
   ] });
 }
-function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFamilyRetry }) {
+function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFamilyRetry, onOpenGraph }) {
   const [more, setMore] = (0, import_react.useState)({});
   if (!node) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u9009\u62E9\u6811\u4E2D\u7684\u8282\u70B9\uFF0C\u67E5\u770B\u80FD\u529B\u4E0E\u5206\u53C9\u65CF\u3002" });
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "atlas-card", children: [
@@ -154,6 +240,7 @@ function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFa
           "\u8BA1\u5212\u72B6\u6001\uFF1A",
           f.planStatus || "\u65E0"
         ] }),
+        onOpenGraph && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onOpenGraph(f.id), children: "\u67E5\u770B\u5206\u652F\u56FE" }) }),
         record === void 0 && f.planStatus !== "\u65E0" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "\u52A0\u8F7D\u8BA1\u5212\u4E2D" }) : plan ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
             "\u8BA1\u5212\u8981\u70B9\uFF1A",
@@ -218,14 +305,14 @@ function TreeView({ nodes, expanded, selected, caps, onToggle, onSelect, refs })
       expanded[n.id] && children.map((child) => render(child, depth + 1, next))
     ] }, n.id);
   }
-  return nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: (byParent.get(null) || []).map((n) => render(n, 0, /* @__PURE__ */ new Set())) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u6682\u65E0\u5206\u652F\u6811\uFF0C\u8BF7\u68C0\u67E5\u6570\u636E\u6216\u91CD\u8BD5\u3002" });
+  return nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: (byParent.get(null) || []).map((n) => render(n, 0, /* @__PURE__ */ new Set())) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u6682\u65E0\u80FD\u529B\u76EE\u5F55\uFF0C\u8BF7\u68C0\u67E5\u6570\u636E\u6216\u91CD\u8BD5\u3002" });
 }
 function AtlasBody({ useTabInfo }) {
   const { tab } = useTabInfo();
   const [base, setBase] = (0, import_react.useState)(initialBase), [draft, setDraft] = (0, import_react.useState)(base), [retry, setRetry] = (0, import_react.useState)(0), [status, setStatus] = (0, import_react.useState)(null), [statusError, setStatusError] = (0, import_react.useState)(""), [error, setError] = (0, import_react.useState)("");
   const [view, setView] = (0, import_react.useState)("\u6982\u89C8"), [settings, setSettings] = (0, import_react.useState)(false), [tree, setTree] = (0, import_react.useState)(null), [expanded, setExpanded] = (0, import_react.useState)({}), [selected, setSelected] = (0, import_react.useState)(null), [caps, setCaps] = (0, import_react.useState)({}), [families, setFamilies] = (0, import_react.useState)(null), [familySummary, setFamilySummary] = (0, import_react.useState)(null), [summaryError, setSummaryError] = (0, import_react.useState)(""), [summaryRetry, setSummaryRetry] = (0, import_react.useState)(0), [familyError, setFamilyError] = (0, import_react.useState)(""), [familyRetry, setFamilyRetry] = (0, import_react.useState)(0), [plans, setPlans] = (0, import_react.useState)({});
-  const [locate, setLocate] = (0, import_react.useState)(""), [matches, setMatches] = (0, import_react.useState)(null), [query, setQuery] = (0, import_react.useState)(""), [mode, setMode] = (0, import_react.useState)("hybrid"), [github, setGithub] = (0, import_react.useState)(false), [results, setResults] = (0, import_react.useState)(null), [searching, setSearching] = (0, import_react.useState)(false), [detail, setDetail] = (0, import_react.useState)(null), [detailLoading, setDetailLoading] = (0, import_react.useState)(false), [copied, setCopied] = (0, import_react.useState)("");
-  const refs = (0, import_react.useRef)({}), timer = (0, import_react.useRef)(null), pending = (0, import_react.useRef)(/* @__PURE__ */ new Set()), generation = (0, import_react.useRef)(0);
+  const [locate, setLocate] = (0, import_react.useState)(""), [matches, setMatches] = (0, import_react.useState)(null), [query, setQuery] = (0, import_react.useState)(""), [mode, setMode] = (0, import_react.useState)("hybrid"), [github, setGithub] = (0, import_react.useState)(false), [results, setResults] = (0, import_react.useState)(null), [searching, setSearching] = (0, import_react.useState)(false), [detail, setDetail] = (0, import_react.useState)(null), [detailLoading, setDetailLoading] = (0, import_react.useState)(false), [copied, setCopied] = (0, import_react.useState)(""), [graphFamily, setGraphFamily] = (0, import_react.useState)(""), [graphExpand, setGraphExpand] = (0, import_react.useState)(false), [graphData, setGraphData] = (0, import_react.useState)(null), [graphError, setGraphError] = (0, import_react.useState)(""), [graphLoading, setGraphLoading] = (0, import_react.useState)(false);
+  const graphRef = (0, import_react.useRef)(null), refs = (0, import_react.useRef)({}), timer = (0, import_react.useRef)(null), pending = (0, import_react.useRef)(/* @__PURE__ */ new Set()), generation = (0, import_react.useRef)(0);
   (0, import_react.useEffect)(() => () => clearTimeout(timer.current), []);
   (0, import_react.useEffect)(() => {
     if (!status?.loading || tab.visible === false) return;
@@ -264,7 +351,7 @@ function AtlasBody({ useTabInfo }) {
     }).catch((e) => {
       if (active) {
         setTree([]);
-        setError("\u52A0\u8F7D\u5206\u652F\u6811\uFF1A" + e.message);
+        setError("\u52A0\u8F7D\u80FD\u529B\u76EE\u5F55\uFF1A" + e.message);
       }
     });
     return () => {
@@ -416,6 +503,52 @@ function AtlasBody({ useTabInfo }) {
     setSettings(false);
   }
   const categories = list(tree).filter((n2) => n2.type === "category").sort((a, b) => (b.plugin_count || 0) - (a.plugin_count || 0)).slice(0, 12), max = Math.max(1, ...categories.map((n2) => n2.plugin_count || 0));
+  const openGraph = (id) => {
+    setGraphFamily(id || "");
+    setView("\u5206\u652F\u56FE");
+    setDetail(null);
+  };
+  (0, import_react.useEffect)(() => {
+    if (view !== "\u5206\u652F\u56FE" || !graphFamily) {
+      if (view === "\u5206\u652F\u56FE" && !graphFamily && selected) {
+        setGraphFamily(selected.plugin_id || selected.id);
+      }
+      return;
+    }
+    let cancelled = false;
+    setGraphLoading(true);
+    setGraphError("");
+    api(base, "/api/branch-graph?" + new URLSearchParams({ family: graphFamily, expand: graphExpand ? "1" : "0" })).then((data) => {
+      if (!cancelled) {
+        setGraphData(data);
+        setGraphLoading(false);
+      }
+    }).catch((e) => {
+      if (!cancelled) {
+        setGraphError(e.message);
+        setGraphData(null);
+        setGraphLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, base, graphFamily, graphExpand, retry]);
+  (0, import_react.useEffect)(() => {
+    if (view === "\u5206\u652F\u56FE" && graphRef.current && graphData && !graphLoading) {
+      renderBranchGraph(graphRef.current, graphData, {
+        compact: true,
+        selectedId: selected?.id,
+        onSelect: (id) => {
+          if (id.startsWith("collapsed:")) setGraphExpand(true);
+          else {
+            const node = tree?.find((n2) => n2.id === id || n2.plugin_id === id);
+            if (node) choose(node);
+          }
+        }
+      });
+    }
+  }, [view, graphData, graphLoading, selected, tree]);
   const related = families;
   const p = detail?.plugin, n = detail?.node, install = p?.install_command || p?.install || (p?.package ? `npm install ${p.package}` : ""), best = [
     ...new Set(
@@ -447,7 +580,7 @@ function AtlasBody({ useTabInfo }) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { "aria-label": "\u670D\u52A1\u5730\u5740", value: draft, onChange: (e) => setDraft(e.target.value) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u4FDD\u5B58\u5730\u5740" })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", { className: "atlas-tabs", "aria-label": "\u9762\u677F\u89C6\u56FE", children: ["\u6982\u89C8", "\u5206\u652F\u6811", "\u641C\u7D22"].map((v) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", { className: "atlas-tabs", "aria-label": "\u9762\u677F\u89C6\u56FE", children: ["\u6982\u89C8", "\u80FD\u529B\u76EE\u5F55", "\u5206\u652F\u56FE", "\u641C\u7D22"].map((v) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "button",
       {
         "aria-pressed": view === v,
@@ -476,7 +609,7 @@ function AtlasBody({ useTabInfo }) {
           {
             className: "atlas-chart-row",
             onClick: () => {
-              setView("\u5206\u652F\u6811");
+              setView("\u80FD\u529B\u76EE\u5F55");
               choose(node);
               const opened = { [node.id]: true };
               let parent = tree.find((x) => x.id === node.parent);
@@ -519,7 +652,7 @@ function AtlasBody({ useTabInfo }) {
           familySummary.stale
         ] })
       ] })),
-      view === "\u5206\u652F\u6811" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+      view === "\u80FD\u529B\u76EE\u5F55" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { className: "atlas-form", onSubmit: find, children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             "input",
@@ -557,10 +690,54 @@ function AtlasBody({ useTabInfo }) {
             plans,
             onCopy: copy,
             familyError,
-            onFamilyRetry: () => setFamilyRetry((x) => x + 1)
+            onFamilyRetry: () => setFamilyRetry((x) => x + 1),
+            onOpenGraph: openGraph
           },
           selected?.id || "none"
         )
+      ] }),
+      view === "\u5206\u652F\u56FE" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-graph", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "form",
+          {
+            className: "atlas-form atlas-graph-toolbar",
+            onSubmit: (e) => {
+              e.preventDefault();
+              const value = e.target.elements.family.value.trim();
+              if (value) setGraphFamily(value);
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                "input",
+                {
+                  name: "family",
+                  defaultValue: graphFamily,
+                  placeholder: "\u5206\u53C9\u65CF\u6216\u63D2\u4EF6 id",
+                  "aria-label": "\u5206\u53C9\u65CF"
+                },
+                graphFamily
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { children: "\u67E5\u770B" }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { type: "checkbox", checked: graphExpand, onChange: (e) => setGraphExpand(e.target.checked) }),
+                " ",
+                "\u5C55\u5F00\u5168\u90E8"
+              ] })
+            ]
+          }
+        ),
+        graphLoading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}),
+        graphError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { className: "atlas-error", children: [
+          "\u52A0\u8F7D\u5206\u652F\u56FE\uFF1A",
+          graphError
+        ] }),
+        !graphFamily && !graphLoading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EmptyState, { children: "\u8F93\u5165\u5206\u53C9\u65CF\u6216\u4ECE\u80FD\u529B\u76EE\u5F55\u7684\u5206\u53C9\u65CF\u6253\u5F00\u5206\u652F\u56FE\u3002" }),
+        graphData && !graphLoading && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { className: "atlas-muted", children: [
+          "\u4E3B\u5E72 ",
+          graphData.trunk,
+          graphData.truncated ? ` \xB7 \u5DF2\u6298\u53E0 ${graphData.hidden}` : ""
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { ref: graphRef, hidden: graphLoading || !graphData })
       ] }),
       view === "\u641C\u7D22" && (detailLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : detail ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "atlas-back", onClick: () => setDetail(null), children: [

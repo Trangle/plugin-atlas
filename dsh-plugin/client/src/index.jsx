@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { renderBranchGraph } from '../../../web/public/branch-graph-view.js';
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'];
 export function apply(ctx) {
   ctx.effect(
@@ -68,7 +69,8 @@ function Icon({ name }) {
 }
 export const styles = `
 .atlas-root{--bg:light-dark(#fff,#1c2225);--surface:light-dark(#f2f5f4,#273033);--text:light-dark(#202b2d,#edf4f2);--muted:light-dark(#536461,#b7c8c3);--line:light-dark(#ccd8d4,#465854);--accent:light-dark(#086e61,#79d8c4);--selected:light-dark(#dcefeb,#304b44);--ui:light-dark(#e1edf6,#263e4c);--tools:light-dark(#f4ead7,#493d29);--other:light-dark(#ecece6,#393e37);background:var(--bg);color:var(--text);font-family:var(--dsh-font-family-text,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif);font-size:var(--dsh-content-font-size,13px);line-height:1.45;height:100%;min-width:0;overflow:auto;padding:12px;box-sizing:border-box;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;scrollbar-color:var(--line) transparent;caret-color:var(--accent)}
-.atlas-root *{box-sizing:border-box}.atlas-root ::selection{background:var(--selected)}.atlas-root button,.atlas-root input,.atlas-root select{font:inherit;color:inherit;min-width:0}.atlas-root button,.atlas-root input:not([type=checkbox]),.atlas-root select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;min-height:32px}.atlas-root button{cursor:pointer;transition:background-color 150ms ease-out,color 150ms ease-out}.atlas-root button:hover{background:var(--surface)}.atlas-root button:active{background:var(--selected)}.atlas-root button:disabled{opacity:.55;cursor:not-allowed}.atlas-root :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.atlas-root input::placeholder{color:var(--muted);opacity:1}.atlas-root svg{width:16px;height:16px;flex:none}.atlas-root h2,.atlas-root h3,.atlas-root h4{line-height:1.3;margin:20px 0 8px}.atlas-root h2{font-size:16px}.atlas-root h3{font-size:14px}.atlas-root h4{font-size:13px}.atlas-root p{margin:8px 0}.atlas-root small,.atlas-muted{color:var(--muted)}.atlas-head{display:flex;align-items:center;gap:8px;min-width:0}.atlas-head strong{font-size:16px;white-space:nowrap}.atlas-head-status{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;font-size:12px}.atlas-count{margin-left:auto;white-space:nowrap;font-size:12px;color:var(--muted)}.atlas-dot{width:7px;height:7px;flex:none;border-radius:50%;background:light-dark(#9a5900,#f3c16f)}.atlas-dot.ready{background:light-dark(#08745c,#79d8b3)}.atlas-dot.offline{background:light-dark(#aa3535,#ffaaaa)}.atlas-icon-button{display:grid;place-items:center;padding:5px!important}.atlas-settings,.atlas-form{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.atlas-form input,.atlas-settings input{flex:1 1 130px}.atlas-tabs{display:flex;background:var(--surface);border-radius:8px;padding:3px;gap:3px;margin:16px 0}.atlas-tabs button{flex:1;border:0;background:transparent;min-width:0}.atlas-tabs button[aria-pressed=true]{background:var(--bg);color:var(--accent);font-weight:700}.atlas-chart-row{display:flex;align-items:center;gap:8px;height:24px;width:100%;text-align:left;border:0!important;padding:0 4px!important;min-height:0!important}.atlas-chart-label{flex:0 1 104px;min-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-chart-track{flex:1;min-width:0}.atlas-chart-bar{height:8px;border-radius:4px;background:var(--accent);opacity:.7}.atlas-chart-count{width:40px;text-align:right}.atlas-card{border:1px solid var(--line);border-radius:10px;padding:12px;margin:16px 0;min-width:0}.atlas-card h3:first-child{margin-top:0}.atlas-tree-row{display:flex;align-items:center;min-width:0;border-radius:6px}.atlas-tree-row.selected{background:var(--selected)}.atlas-tree-toggle{border:0!important;background:transparent!important;padding:4px!important;min-height:28px!important;display:grid;place-items:center}.atlas-tree-spacer{width:26px;flex:none}.atlas-tree-select{border:0!important;background:transparent!important;display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;padding:4px!important;min-height:28px!important}.atlas-tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-badge{display:inline-block;border-radius:4px;background:var(--other);padding:1px 5px;font-size:12px;line-height:1.5}.atlas-badge.ui{background:var(--ui)}.atlas-badge.tools{background:var(--tools)}.atlas-cap-list{display:flex;flex-wrap:wrap;gap:4px}.atlas-cap-group{margin-top:12px}.atlas-cap-group h4{margin:0 0 5px}.atlas-more{margin-top:5px}.atlas-family{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}.atlas-family h4{margin:0 0 6px}.atlas-code,.atlas-root pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.atlas-code{background:var(--surface);padding:8px;border-radius:6px;margin:8px 0}.atlas-row{display:block;width:100%;height:auto;text-align:left;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;padding:10px 4px!important}.atlas-snippet{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);margin-top:4px}.atlas-error{color:light-dark(#9d2828,#ffb5b5)}.atlas-root a{color:var(--accent);text-underline-offset:3px}.atlas-readme{max-height:240px;overflow:auto}.atlas-back{display:flex;align-items:center;gap:4px}.atlas-empty{padding:16px 0;color:var(--muted)}.atlas-skeleton span{display:block;height:12px;background:var(--surface);border-radius:4px;margin:12px 0}.atlas-skeleton span:nth-child(2){width:75%}.atlas-skeleton span:nth-child(3){width:50%}.atlas-find-results{border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto}.atlas-find-results button{border:0;border-radius:0;width:100%;text-align:left}.atlas-find-results small{display:block}.atlas-root details summary{cursor:pointer}.atlas-root label{display:block;margin:8px 0}@media(max-width:390px){.atlas-root{padding:10px}.atlas-head{gap:5px}.atlas-head strong{font-size:14px}.atlas-tree-row .atlas-badge{font-size:11px}}@media(prefers-reduced-motion:reduce){.atlas-root *{scroll-behavior:auto!important;transition:none!important}}`;
+.atlas-root *{box-sizing:border-box}.atlas-root ::selection{background:var(--selected)}.atlas-root button,.atlas-root input,.atlas-root select{font:inherit;color:inherit;min-width:0}.atlas-root button,.atlas-root input:not([type=checkbox]),.atlas-root select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;min-height:32px}.atlas-root button{cursor:pointer;transition:background-color 150ms ease-out,color 150ms ease-out}.atlas-root button:hover{background:var(--surface)}.atlas-root button:active{background:var(--selected)}.atlas-root button:disabled{opacity:.55;cursor:not-allowed}.atlas-root :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.atlas-root input::placeholder{color:var(--muted);opacity:1}.atlas-root svg:not(.bg-svg){width:16px;height:16px;flex:none}.atlas-root .bg-svg{width:auto;height:auto;max-width:none;flex:none}.atlas-root h2,.atlas-root h3,.atlas-root h4{line-height:1.3;margin:20px 0 8px}.atlas-root h2{font-size:16px}.atlas-root h3{font-size:14px}.atlas-root h4{font-size:13px}.atlas-root p{margin:8px 0}.atlas-root small,.atlas-muted{color:var(--muted)}.atlas-head{display:flex;align-items:center;gap:8px;min-width:0}.atlas-head strong{font-size:16px;white-space:nowrap}.atlas-head-status{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;font-size:12px}.atlas-count{margin-left:auto;white-space:nowrap;font-size:12px;color:var(--muted)}.atlas-dot{width:7px;height:7px;flex:none;border-radius:50%;background:light-dark(#9a5900,#f3c16f)}.atlas-dot.ready{background:light-dark(#08745c,#79d8b3)}.atlas-dot.offline{background:light-dark(#aa3535,#ffaaaa)}.atlas-icon-button{display:grid;place-items:center;padding:5px!important}.atlas-settings,.atlas-form{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.atlas-form input,.atlas-settings input{flex:1 1 130px}.atlas-tabs{display:flex;background:var(--surface);border-radius:8px;padding:3px;gap:3px;margin:16px 0}.atlas-tabs button{flex:1;border:0;background:transparent;min-width:0}.atlas-tabs button[aria-pressed=true]{background:var(--bg);color:var(--accent);font-weight:700}.atlas-chart-row{display:flex;align-items:center;gap:8px;height:24px;width:100%;text-align:left;border:0!important;padding:0 4px!important;min-height:0!important}.atlas-chart-label{flex:0 1 104px;min-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-chart-track{flex:1;min-width:0}.atlas-chart-bar{height:8px;border-radius:4px;background:var(--accent);opacity:.7}.atlas-chart-count{width:40px;text-align:right}.atlas-card{border:1px solid var(--line);border-radius:10px;padding:12px;margin:16px 0;min-width:0}.atlas-card h3:first-child{margin-top:0}.atlas-tree-row{display:flex;align-items:center;min-width:0;border-radius:6px}.atlas-tree-row.selected{background:var(--selected)}.atlas-tree-toggle{border:0!important;background:transparent!important;padding:4px!important;min-height:28px!important;display:grid;place-items:center}.atlas-tree-spacer{width:26px;flex:none}.atlas-tree-select{border:0!important;background:transparent!important;display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;padding:4px!important;min-height:28px!important}.atlas-tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.atlas-badge{display:inline-block;border-radius:4px;background:var(--other);padding:1px 5px;font-size:12px;line-height:1.5}.atlas-badge.ui{background:var(--ui)}.atlas-badge.tools{background:var(--tools)}.atlas-cap-list{display:flex;flex-wrap:wrap;gap:4px}.atlas-cap-group{margin-top:12px}.atlas-cap-group h4{margin:0 0 5px}.atlas-more{margin-top:5px}.atlas-family{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}.atlas-family h4{margin:0 0 6px}.atlas-code,.atlas-root pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.atlas-code{background:var(--surface);padding:8px;border-radius:6px;margin:8px 0}.atlas-row{display:block;width:100%;height:auto;text-align:left;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;padding:10px 4px!important}.atlas-snippet{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);margin-top:4px}.atlas-error{color:light-dark(#9d2828,#ffb5b5)}.atlas-root a{color:var(--accent);text-underline-offset:3px}.atlas-readme{max-height:240px;overflow:auto}.atlas-back{display:flex;align-items:center;gap:4px}.atlas-empty{padding:16px 0;color:var(--muted)}.atlas-skeleton span{display:block;height:12px;background:var(--surface);border-radius:4px;margin:12px 0}.atlas-skeleton span:nth-child(2){width:75%}.atlas-skeleton span:nth-child(3){width:50%}.atlas-find-results{border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto}.atlas-find-results button{border:0;border-radius:0;width:100%;text-align:left}.atlas-find-results small{display:block}.atlas-root details summary{cursor:pointer}.atlas-root label{display:block;margin:8px 0}.atlas-graph-toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}.atlas-graph-toolbar input{flex:1 1 140px}.atlas-graph .bg-scroll{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg)}.atlas-graph .bg-plot{position:relative}.atlas-graph .bg-svg{position:absolute;inset:0}.atlas-graph .bg-label{position:absolute;display:flex;align-items:center;gap:4px;overflow:hidden;font-size:12px;pointer-events:none}.atlas-graph .bg-name{pointer-events:auto;border:0!important;background:transparent!important;padding:0!important;min-height:0!important;border-radius:0!important;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.atlas-graph .bg-cap{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px;white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis}.atlas-graph .bg-diff{white-space:nowrap;flex:none}.atlas-graph .bg-diff .plus{color:var(--accent);font-weight:650}.atlas-graph .bg-diff .minus{color:light-dark(#9d2828,#ffb5b5);font-weight:650}.atlas-graph .bg-meta,.atlas-graph .bg-role,.atlas-graph .bg-count{color:var(--muted);font-size:11px;white-space:nowrap}.atlas-graph .bg-hint{color:var(--muted);margin:0 0 8px}.atlas-graph .bg-dot{fill:var(--accent);stroke:var(--bg);stroke-width:2}.atlas-graph .bg-dot.duplicate,.atlas-graph .bg-dot.dead{fill:var(--muted);opacity:.7}.atlas-graph .bg-dot.collapsed{fill:none;stroke:var(--muted);stroke-dasharray:2 2}.atlas-graph .bg-track{stroke:var(--line);stroke-width:1.5}.atlas-graph .bg-track.trunk{stroke:var(--accent);stroke-width:2;opacity:.55}.atlas-graph .bg-edge{stroke:var(--accent);stroke-width:1.75;fill:none}.atlas-graph .bg-edge.merge-suggest{stroke:var(--muted);stroke-dasharray:5 4;stroke-width:1.5}
+@media(max-width:390px){.atlas-root{padding:10px}.atlas-head{gap:5px}.atlas-head strong{font-size:14px}.atlas-tree-row .atlas-badge{font-size:11px}}@media(prefers-reduced-motion:reduce){.atlas-root *{scroll-behavior:auto!important;transition:none!important}}`;
 export function EmptyState({ children }) {
   return <p className="atlas-empty">{children}</p>;
 }
@@ -81,7 +83,7 @@ function Skeleton() {
     </div>
   );
 }
-export function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFamilyRetry }) {
+export function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFamilyRetry, onOpenGraph }) {
   const [more, setMore] = useState({});
   if (!node) return <EmptyState>选择树中的节点，查看能力与分叉族。</EmptyState>;
   return (
@@ -151,6 +153,13 @@ export function CapabilityCard({ node, caps, families, plans, onCopy, familyErro
                   .join('、') || '暂无'}
               </p>
               <p>计划状态：{f.planStatus || '无'}</p>
+              {onOpenGraph && (
+                <p>
+                  <button type="button" onClick={() => onOpenGraph(f.id)}>
+                    查看分支图
+                  </button>
+                </p>
+              )}
               {record === undefined && f.planStatus !== '无' ? (
                 <small>加载计划中</small>
               ) : plan ? (
@@ -237,7 +246,7 @@ export function TreeView({ nodes, expanded, selected, caps, onToggle, onSelect, 
   return nodes.length ? (
     <div>{(byParent.get(null) || []).map((n) => render(n, 0, new Set()))}</div>
   ) : (
-    <EmptyState>暂无分支树，请检查数据或重试。</EmptyState>
+    <EmptyState>暂无能力目录，请检查数据或重试。</EmptyState>
   );
 }
 function AtlasBody({ useTabInfo }) {
@@ -270,8 +279,14 @@ function AtlasBody({ useTabInfo }) {
     [searching, setSearching] = useState(false),
     [detail, setDetail] = useState(null),
     [detailLoading, setDetailLoading] = useState(false),
-    [copied, setCopied] = useState('');
-  const refs = useRef({}),
+    [copied, setCopied] = useState(''),
+    [graphFamily, setGraphFamily] = useState(''),
+    [graphExpand, setGraphExpand] = useState(false),
+    [graphData, setGraphData] = useState(null),
+    [graphError, setGraphError] = useState(''),
+    [graphLoading, setGraphLoading] = useState(false);
+  const graphRef = useRef(null),
+    refs = useRef({}),
     timer = useRef(null),
     pending = useRef(new Set()),
     generation = useRef(0);
@@ -317,7 +332,7 @@ function AtlasBody({ useTabInfo }) {
       .catch((e) => {
         if (active) {
           setTree([]);
-          setError('加载分支树：' + e.message);
+          setError('加载能力目录：' + e.message);
         }
       });
     return () => {
@@ -486,6 +501,55 @@ function AtlasBody({ useTabInfo }) {
       .sort((a, b) => (b.plugin_count || 0) - (a.plugin_count || 0))
       .slice(0, 12),
     max = Math.max(1, ...categories.map((n) => n.plugin_count || 0));
+
+  const openGraph = (id) => {
+    setGraphFamily(id || '');
+    setView('分支图');
+    setDetail(null);
+  };
+  useEffect(() => {
+    if (view !== '分支图' || !graphFamily) {
+      if (view === '分支图' && !graphFamily && selected) {
+        setGraphFamily(selected.plugin_id || selected.id);
+      }
+      return;
+    }
+    let cancelled = false;
+    setGraphLoading(true);
+    setGraphError('');
+    api(base, '/api/branch-graph?' + new URLSearchParams({ family: graphFamily, expand: graphExpand ? '1' : '0' }))
+      .then((data) => {
+        if (!cancelled) {
+          setGraphData(data);
+          setGraphLoading(false);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setGraphError(e.message);
+          setGraphData(null);
+          setGraphLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, base, graphFamily, graphExpand, retry]);
+  useEffect(() => {
+    if (view === '分支图' && graphRef.current && graphData && !graphLoading) {
+      renderBranchGraph(graphRef.current, graphData, {
+        compact: true,
+        selectedId: selected?.id,
+        onSelect: (id) => {
+          if (id.startsWith('collapsed:')) setGraphExpand(true);
+          else {
+            const node = tree?.find((n) => n.id === id || n.plugin_id === id);
+            if (node) choose(node);
+          }
+        },
+      });
+    }
+  }, [view, graphData, graphLoading, selected, tree]);
   const related = families;
   const p = detail?.plugin,
     n = detail?.node,
@@ -524,7 +588,7 @@ function AtlasBody({ useTabInfo }) {
         </form>
       )}
       <nav className="atlas-tabs" aria-label="面板视图">
-        {['概览', '分支树', '搜索'].map((v) => (
+        {['概览', '能力目录', '分支图', '搜索'].map((v) => (
           <button
             key={v}
             aria-pressed={view === v}
@@ -568,7 +632,7 @@ function AtlasBody({ useTabInfo }) {
                         className="atlas-chart-row"
                         key={node.id}
                         onClick={() => {
-                          setView('分支树');
+                          setView('能力目录');
                           choose(node);
                           const opened = { [node.id]: true };
                           let parent = tree.find((x) => x.id === node.parent);
@@ -613,7 +677,7 @@ function AtlasBody({ useTabInfo }) {
                 )}
               </>
             ))}
-          {view === '分支树' && (
+          {view === '能力目录' && (
             <>
               <form className="atlas-form" onSubmit={find}>
                 <input
@@ -663,8 +727,44 @@ function AtlasBody({ useTabInfo }) {
                 onCopy={copy}
                 familyError={familyError}
                 onFamilyRetry={() => setFamilyRetry((x) => x + 1)}
+                onOpenGraph={openGraph}
               />
             </>
+          )}
+          {view === '分支图' && (
+            <div className="atlas-graph">
+              <form
+                className="atlas-form atlas-graph-toolbar"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const value = e.target.elements.family.value.trim();
+                  if (value) setGraphFamily(value);
+                }}
+              >
+                <input
+                  key={graphFamily}
+                  name="family"
+                  defaultValue={graphFamily}
+                  placeholder="分叉族或插件 id"
+                  aria-label="分叉族"
+                />
+                <button>查看</button>
+                <label>
+                  <input type="checkbox" checked={graphExpand} onChange={(e) => setGraphExpand(e.target.checked)} />{' '}
+                  展开全部
+                </label>
+              </form>
+              {graphLoading && <Skeleton />}
+              {graphError && <p className="atlas-error">加载分支图：{graphError}</p>}
+              {!graphFamily && !graphLoading && <EmptyState>输入分叉族或从能力目录的分叉族打开分支图。</EmptyState>}
+              {graphData && !graphLoading && (
+                <p className="atlas-muted">
+                  主干 {graphData.trunk}
+                  {graphData.truncated ? ` · 已折叠 ${graphData.hidden}` : ''}
+                </p>
+              )}
+              <div ref={graphRef} hidden={graphLoading || !graphData} />
+            </div>
           )}
           {view === '搜索' &&
             (detailLoading ? (

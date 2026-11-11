@@ -36,25 +36,42 @@
       <div id="results" hidden></div>
     </header>
     <main>
-      <section class="explorer" aria-label="分支树">
+      <section class="explorer" aria-label="能力目录与分支图">
         <div class="section-heading">
           <div>
-            <h1>分支树</h1>
+            <h1 id="view-title">能力目录</h1>
             <p id="counts">浏览分类、分支与插件</p>
+          </div>
+          <div class="view-tabs" role="tablist" aria-label="主视图">
+            <button type="button" id="tab-catalog" role="tab" aria-selected="true">能力目录</button>
+            <button type="button" id="tab-graph" role="tab" aria-selected="false">分支图</button>
           </div>
         </div>
         <div id="graphwrap">
-          <div id="graph" role="tree" aria-label="插件分支树">
+          <div id="graph" role="tree" aria-label="插件能力目录">
             <div class="skeleton"></div>
             <div class="skeleton"></div>
             <div class="skeleton"></div>
+          </div>
+          <div id="branch-graph-view" hidden>
+            <div class="graph-toolbar">
+              <label
+                >分叉族
+                <input id="graph-family" list="graph-family-list" placeholder="分支或插件 id" autocomplete="off"
+              /></label>
+              <datalist id="graph-family-list"></datalist>
+              <button type="button" id="graph-load">查看</button>
+              <label class="check"><input type="checkbox" id="graph-expand" /> 展开全部</label>
+              <span id="graph-meta" class="muted"></span>
+            </div>
+            <div id="branch-graph" class="branch-graph"><p class="muted">选择一个分叉族，查看 git 式分支图。</p></div>
           </div>
         </div>
       </section>
       <section id="detail" aria-live="polite">
         <div class="empty">
           <h2>选择一个节点</h2>
-          <p>从左侧分支树选择分类、分支或插件，查看能力与分叉关系。</p>
+          <p>从左侧能力目录选择分类、分支或插件，或打开分支图查看分叉关系。</p>
         </div>
       </section>
     </main>

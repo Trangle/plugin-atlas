@@ -1,3 +1,4 @@
+import { renderBranchGraph } from './branch-graph-view.js';
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
     String(s ?? '').replace(
@@ -38,7 +39,11 @@ let tree = { nodes: [] },
   detail = null,
   activeTab = '能力',
   requestId = 0,
-  statusTimer;
+  statusTimer,
+  mainView = 'catalog',
+  graphFamily = '',
+  graphData = null,
+  familyOptions = [];
 const nodes = () => {
   const all = new Map(tree.nodes.map((n) => [n.id, n]));
   for (const n of [...pages.values()].flatMap((p) => p.nodes))
@@ -301,10 +306,11 @@ async function renderFamilies() {
     panel.innerHTML = families
       .map(
         (f) =>
-          `<section class="family" data-family="${esc(f.id)}"><h3>${esc(f.id.startsWith('dup:') ? '重复关系族' : '分叉族')} · ${esc(f.id)}</h3><p>成员 ${f.members.length} 个 · 合并计划：${esc(f.planStatus)}</p><p>代表节点：${f.representatives.length ? f.representatives.map((x) => link(x.id)).join('、') : '暂无'}</p><p>成员：${f.members.map((x) => link(x)).join('、') || '暂无'}</p><p class="muted">${f.id.startsWith('dup:') ? '这些成员存在 fork 或重复关系。' : '此族包含该末级分支的插件；重复关系另列。'}</p><div class="plan">${skeleton}</div></section>`,
+          `<section class="family" data-family="${esc(f.id)}"><h3>${esc(f.id.startsWith('dup:') ? '重复关系族' : '分叉族')} · ${esc(f.id)}</h3><p>成员 ${f.members.length} 个 · 合并计划：${esc(f.planStatus)}</p><p>代表节点：${f.representatives.length ? f.representatives.map((x) => link(x.id)).join('、') : '暂无'}</p><p>成员：${f.members.map((x) => link(x)).join('、') || '暂无'}</p><p><button type="button" data-graph="${esc(f.id)}">查看分支图</button></p><p class="muted">${f.id.startsWith('dup:') ? '这些成员存在 fork 或重复关系。' : '此族包含该末级分支的插件；重复关系另列。'}</p><div class="plan">${skeleton}</div></section>`,
       )
       .join('');
     panel.querySelectorAll('[data-node]').forEach((b) => (b.onclick = () => locate(b.dataset.node)));
+    panel.querySelectorAll('[data-graph]').forEach((b) => (b.onclick = () => openBranchGraph(b.dataset.graph)));
     copyButtons(panel);
     for (const f of families) {
       const target = [...panel.querySelectorAll('[data-family]')]
@@ -333,6 +339,83 @@ function planCommand(id, command) {
   const cmd = command || '/atlas plan ' + id + ' --dry-run';
   return `<p>暂无计划，可先生成预览命令。</p><div class="command"><code>${esc(cmd)}</code><button data-copy="${esc(cmd)}">复制生成合并计划命令</button></div>`;
 }
+
+function setMainView(view) {
+  mainView = view === 'graph' ? 'graph' : 'catalog';
+  const catalog = mainView === 'catalog';
+  $('#tab-catalog')?.setAttribute('aria-selected', String(catalog));
+  $('#tab-graph')?.setAttribute('aria-selected', String(!catalog));
+  const title = $('#view-title');
+  if (title) title.textContent = catalog ? '能力目录' : '分支图';
+  if ($('#graph')) $('#graph').hidden = !catalog;
+  if ($('#branch-graph-view')) $('#branch-graph-view').hidden = catalog;
+}
+async function ensureFamilyOptions() {
+  if (familyOptions.length) return familyOptions;
+  const all = await api('/api/families');
+  const list = all.computing ? [] : all.families || [];
+  if (all.computing) return [];
+  familyOptions = list;
+  const datalist = $('#graph-family-list');
+  if (datalist)
+    datalist.innerHTML = list
+      .slice()
+      .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
+      .slice(0, 400)
+      .map((f) => `<option value="${esc(f.id)}">${esc(f.id)}（${f.members.length}）</option>`)
+      .join('');
+  return list;
+}
+async function loadBranchGraph(family, expand = $('#graph-expand')?.checked) {
+  if (!family) {
+    $('#branch-graph').innerHTML = '<p class="muted">选择一个分叉族，查看 git 式分支图。</p>';
+    $('#graph-meta').textContent = '';
+    return;
+  }
+  graphFamily = family;
+  if ($('#graph-family')) $('#graph-family').value = family;
+  $('#branch-graph').innerHTML = skeleton + '<p class="muted">正在计算分叉关系，首次可能需要稍等。</p>';
+  $('#graph-meta').textContent = '加载中';
+  try {
+    const data = await api('/api/branch-graph?' + params({ family, expand: expand ? '1' : '0' }));
+    graphData = data;
+    const meta = [
+      `主干 ${data.nodes.find((n) => n.id === data.trunk)?.label || data.trunk}`,
+      `${data.nodes.length} 个节点`,
+      data.truncated ? `已折叠 ${data.hidden}` : '已展开',
+    ];
+    $('#graph-meta').textContent = meta.join(' · ');
+    renderBranchGraph($('#branch-graph'), data, {
+      selectedId: selected,
+      onSelect: async (id) => {
+        if (id.startsWith('collapsed:')) {
+          if ($('#graph-expand')) $('#graph-expand').checked = true;
+          await loadBranchGraph(graphFamily, true);
+          return;
+        }
+        try {
+          await locate(id);
+        } catch (e) {
+          $('#detail').innerHTML = errorText(e);
+        }
+      },
+    });
+  } catch (e) {
+    $('#branch-graph').innerHTML = errorText(e);
+    $('#graph-meta').textContent = '';
+  }
+}
+async function openBranchGraph(family) {
+  setMainView('graph');
+  await ensureFamilyOptions();
+  const id =
+    family ||
+    graphFamily ||
+    (detail?.node?.type === 'plugin' ? detail.node.plugin_id || detail.node.id : detail?.node?.id) ||
+    selected;
+  await loadBranchGraph(id);
+}
+
 async function refresh() {
   const s = await api('/api/status');
   if (!s.counts) {
@@ -351,12 +434,13 @@ async function refresh() {
   $('#github-count').textContent = `(${s.counts.github_only})`;
   $('#counts').textContent = `${root?.plugin_count ?? s.counts.plugin_nodes_visible} 个可见插件 · 选择节点查看详情`;
   draw();
+  if (mainView === 'graph' && graphFamily) await loadBranchGraph(graphFamily, $('#graph-expand')?.checked);
   if (selected && !(await locate(selected, true))) {
     selected = null;
     detail = null;
     requestId++;
     $('#detail').innerHTML =
-      '<div class="empty"><h2>选择一个节点</h2><p>从左侧分支树选择分类、分支或插件，查看能力与分叉关系。</p></div>';
+      '<div class="empty"><h2>选择一个节点</h2><p>从左侧能力目录选择分类、分支或插件，或打开分支图查看分叉关系。</p></div>';
     draw();
   }
 }
@@ -443,4 +527,17 @@ function setTheme() {
 }
 theme.onchange = setTheme;
 setTheme();
+$('#tab-catalog').onclick = () => setMainView('catalog');
+$('#tab-graph').onclick = () => openBranchGraph(graphFamily || selected);
+$('#graph-load').onclick = () => loadBranchGraph($('#graph-family').value.trim(), $('#graph-expand').checked);
+$('#graph-family').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    loadBranchGraph($('#graph-family').value.trim(), $('#graph-expand').checked);
+  }
+});
+$('#graph-expand').onchange = () => {
+  if (graphFamily) loadBranchGraph(graphFamily, $('#graph-expand').checked);
+};
+ensureFamilyOptions().catch(() => {});
 refresh().catch(showError);

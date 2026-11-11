@@ -173,10 +173,21 @@ test('tree and capability card render hierarchy, badges, family and limited capa
   );
   assert.match(planned, /合并功能/);
   assert.match(planned, /验证/);
+  const withGraph = render(
+    CapabilityCard({
+      node: nodes[1],
+      caps,
+      families: [{ id: 'b', representatives: [], planStatus: '无' }],
+      plans: {},
+      onCopy() {},
+      onOpenGraph() {},
+    }),
+  );
+  assert.match(withGraph, /查看分支图/);
 });
 test('empty tree and host-aware dark theme tokens render', async () => {
   const { TreeView, CapabilityCard, styles } = await loadComponents();
-  assert.match(render(TreeView({ nodes: [], expanded: {}, caps: {}, refs: { current: {} } })), /暂无分支树/);
+  assert.match(render(TreeView({ nodes: [], expanded: {}, caps: {}, refs: { current: {} } })), /暂无能力目录/);
   assert.match(render(CapabilityCard({ node: null })), /选择树中的节点/);
   assert.match(styles, /light-dark\(/);
   assert.match(styles, /--dsh-font-family-text/);

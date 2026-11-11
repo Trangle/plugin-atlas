@@ -11,6 +11,11 @@ function element(selector) {
       textContent: '',
       dataset: {},
       hidden: true,
+      value: '',
+      checked: false,
+      disabled: false,
+      addEventListener() {},
+      setAttribute() {},
       querySelectorAll: () => [],
       querySelector: () => element('.tab-panel'),
     });
@@ -44,6 +49,7 @@ const context = vm.createContext({
   clearTimeout,
   DOMPurify: { sanitize: (s) => s },
   marked: { parse: (s) => s },
+  renderBranchGraph() {},
   fetch: async (path) => {
     const url = new URL(path, 'http://localhost');
     let value;
@@ -72,13 +78,18 @@ const context = vm.createContext({
         }
         value = { node, ancestors };
       }
-    } else throw new Error(`Unexpected request: ${path}`);
+    } else if (url.pathname === '/api/families') value = { families: [] };
+    else if (url.pathname === '/api/branch-graph')
+      value = { family: 'branch', trunk: 'plugin', nodes: [], edges: [], lanes: 1, rows: 0 };
+    else throw new Error(`Unexpected request: ${path}`);
     return { ok: status === 200, status, statusText: 'error', json: async () => value };
   },
 });
 // Suppress only startup; exercise the actual browser functions below.
 vm.runInContext(
-  source.replace(/refresh\(\)\.catch\(showError\);\s*$/, '') +
+  source
+    .replace(/^import \{ renderBranchGraph \} from '\.\/branch-graph-view\.js';\n/, '')
+    .replace(/refresh\(\)\.catch\(showError\);\s*$/, '') +
     `\n globalThis.ui = {
   refresh, locate, treeKey,
   setGithub(value) { includeGithub = value; },

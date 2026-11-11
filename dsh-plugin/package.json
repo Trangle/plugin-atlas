@@ -1,0 +1,16 @@
+{
+  "name": "dsh-plugin-atlas",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness Plugin Atlas integration",
+  "type": "module",
+  "main": "./index.js",
+  "exports": { ".": "./index.js", "./commands": "./commands.js", "./package.json": "./package.json" },
+  "files": ["index.js", "commands.js", "lib/", "cordis.patch.yml", "README.md", "LICENSE"],
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness"],
+  "engines": { "node": ">=22", "dsh": ">=0.2.1-rc.2 <0.3.0" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.5", "@deepseek-ai/dsh-tools": ">=0.2.1-rc.2 <0.3.0", "@deepseek-ai/dsh-commands": ">=0.2.1-rc.2 <0.3.0" },
+  "peerDependenciesMeta": { "@deepseek-ai/dsh-commands": { "optional": true } },
+  "scripts": { "test": "node test/selftest.mjs" },
+  "license": "MIT"
+}

@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+# data (distributed via GitHub Release)
+data/
+# runtime / logs / caches
+logs/
+*.log
+.run/
+.atlas/
+.gen/
+web/.pid
+*.pid
+web/.models/
+.models/
+*.vectors*
+*.vec
+*.embeddings*
+.cache/
+# backups and archives
+backup-*.tgz
+*.tgz
+*.tar
+*.tar.zst
+*.tar.gz
+web-backup-r1/
+data/capabilities-legacy-r4/
+r3/
+*.bak*
+# secrets / env
+.env*
+# old screenshots (keep docs/)
+web/screenshot*.png
+release/

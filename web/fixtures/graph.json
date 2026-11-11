@@ -1,0 +1,327 @@
+{
+  "version": 1,
+  "example": true,
+  "generated_at": "2026-11-10T00:00:00Z",
+  "nodes": [
+    {
+      "id": "root",
+      "type": "root",
+      "label": "Plugin Atlas",
+      "summary": "示例 · 插件能力演化图谱",
+      "parent": null
+    },
+    {
+      "id": "knowledge",
+      "type": "category",
+      "label": "知识与检索",
+      "parent": "root",
+      "summary": "示例 · 从信息采集走向知识理解"
+    },
+    {
+      "id": "workflow",
+      "type": "category",
+      "label": "自动化工作流",
+      "parent": "root",
+      "summary": "示例 · 从单点工具走向协作编排"
+    },
+    {
+      "id": "developer",
+      "type": "category",
+      "label": "开发者工具",
+      "parent": "root",
+      "summary": "示例 · 从代码理解走向交付验证"
+    },
+    {
+      "id": "web",
+      "type": "branch",
+      "label": "网页采集",
+      "parent": "knowledge",
+      "summary": "示例 · 网页采集",
+      "fork_reason": "针对独立使用场景细化能力"
+    },
+    {
+      "id": "npm:@atlas/web-reader",
+      "type": "plugin",
+      "label": "Web Reader",
+      "parent": "web",
+      "summary": "示例 · 网页采集，提供轻量、可扩展的本地工具",
+      "plugin_id": "npm:@atlas/web-reader"
+    },
+    {
+      "id": "npm:@atlas/site-crawler",
+      "type": "plugin",
+      "label": "Site Crawler",
+      "parent": "web",
+      "summary": "示例 · 网页采集，面向可组合的团队工作流",
+      "plugin_id": "npm:@atlas/site-crawler"
+    },
+    {
+      "id": "search",
+      "type": "branch",
+      "label": "语义检索",
+      "parent": "knowledge",
+      "summary": "示例 · 语义检索",
+      "fork_reason": "针对独立使用场景细化能力"
+    },
+    {
+      "id": "retrieval",
+      "type": "branch",
+      "label": "混合召回",
+      "parent": "search",
+      "summary": "示例 · 关键词与向量融合",
+      "fork_reason": "同时支持中文精确匹配与语义发现"
+    },
+    {
+      "id": "npm:@atlas/semantic-search",
+      "type": "plugin",
+      "label": "Semantic Search",
+      "parent": "retrieval",
+      "summary": "示例 · 语义检索，提供轻量、可扩展的本地工具",
+      "plugin_id": "npm:@atlas/semantic-search"
+    },
+    {
+      "id": "npm:@atlas/vector-store",
+      "type": "plugin",
+      "label": "Vector Store",
+      "parent": "retrieval",
+      "summary": "示例 · 语义检索，面向可组合的团队工作流",
+      "plugin_id": "npm:@atlas/vector-store"
+    },
+    {
+      "id": "tasks",
+      "type": "branch",
+      "label": "任务编排",
+      "parent": "workflow",
+      "summary": "示例 · 任务编排",
+      "fork_reason": "针对独立使用场景细化能力"
+    },
+    {
+      "id": "npm:@atlas/task-runner",
+      "type": "plugin",
+      "label": "Task Runner",
+      "parent": "tasks",
+      "summary": "示例 · 任务编排，提供轻量、可扩展的本地工具",
+      "plugin_id": "npm:@atlas/task-runner"
+    },
+    {
+      "id": "npm:@atlas/flow-builder",
+      "type": "plugin",
+      "label": "Flow Builder",
+      "parent": "tasks",
+      "summary": "示例 · 任务编排，面向可组合的团队工作流",
+      "plugin_id": "npm:@atlas/flow-builder"
+    },
+    {
+      "id": "messages",
+      "type": "branch",
+      "label": "消息协作",
+      "parent": "workflow",
+      "summary": "示例 · 消息协作",
+      "fork_reason": "针对独立使用场景细化能力"
+    },
+    {
+      "id": "npm:@atlas/chat-bridge",
+      "type": "plugin",
+      "label": "Chat Bridge",
+      "parent": "messages",
+      "summary": "示例 · 消息协作，提供轻量、可扩展的本地工具",
+      "plugin_id": "npm:@atlas/chat-bridge"
+    },
+    {
+      "id": "npm:@atlas/notify-hub",
+      "type": "plugin",
+      "label": "Notify Hub",
+      "parent": "messages",
+      "summary": "示例 · 消息协作，面向可组合的团队工作流",
+      "plugin_id": "npm:@atlas/notify-hub"
+    },
+    {
+      "id": "code",
+      "type": "branch",
+      "label": "代码理解",
+      "parent": "developer",
+      "summary": "示例 · 代码理解",
+      "fork_reason": "针对独立使用场景细化能力"
+    },
+    {
+      "id": "npm:@atlas/code-explorer",
+      "type": "plugin",
+      "label": "Code Explorer",
+      "parent": "code",
+      "summary": "示例 · 代码理解，提供轻量、可扩展的本地工具",
+      "plugin_id": "npm:@atlas/code-explorer"
+    },
+    {
+      "id": "npm:@atlas/dependency-lens",
+      "type": "plugin",
+      "label": "Dependency Lens",
+      "parent": "code",
+      "summary": "示例 · 代码理解，面向可组合的团队工作流",
+      "plugin_id": "npm:@atlas/dependency-lens"
+    },
+    {
+      "id": "quality",
+      "type": "branch",
+      "label": "质量验证",
+      "parent": "developer",
+      "summary": "示例 · 质量验证",
+      "fork_reason": "针对独立使用场景细化能力"
+    },
+    {
+      "id": "npm:@atlas/test-pilot",
+      "type": "plugin",
+      "label": "Test Pilot",
+      "parent": "quality",
+      "summary": "示例 · 质量验证，提供轻量、可扩展的本地工具",
+      "plugin_id": "npm:@atlas/test-pilot"
+    },
+    {
+      "id": "npm:@atlas/review-assistant",
+      "type": "plugin",
+      "label": "Review Assistant",
+      "parent": "quality",
+      "summary": "示例 · 质量验证，面向可组合的团队工作流",
+      "plugin_id": "npm:@atlas/review-assistant"
+    }
+  ],
+  "edges": [
+    {
+      "source": "root",
+      "target": "knowledge",
+      "type": "parent"
+    },
+    {
+      "source": "root",
+      "target": "workflow",
+      "type": "parent"
+    },
+    {
+      "source": "root",
+      "target": "developer",
+      "type": "parent"
+    },
+    {
+      "source": "knowledge",
+      "target": "web",
+      "type": "parent"
+    },
+    {
+      "source": "web",
+      "target": "npm:@atlas/web-reader",
+      "type": "parent"
+    },
+    {
+      "source": "web",
+      "target": "npm:@atlas/site-crawler",
+      "type": "parent"
+    },
+    {
+      "source": "knowledge",
+      "target": "search",
+      "type": "parent"
+    },
+    {
+      "source": "search",
+      "target": "retrieval",
+      "type": "parent"
+    },
+    {
+      "source": "retrieval",
+      "target": "npm:@atlas/semantic-search",
+      "type": "parent"
+    },
+    {
+      "source": "retrieval",
+      "target": "npm:@atlas/vector-store",
+      "type": "parent"
+    },
+    {
+      "source": "workflow",
+      "target": "tasks",
+      "type": "parent"
+    },
+    {
+      "source": "tasks",
+      "target": "npm:@atlas/task-runner",
+      "type": "parent"
+    },
+    {
+      "source": "tasks",
+      "target": "npm:@atlas/flow-builder",
+      "type": "parent"
+    },
+    {
+      "source": "workflow",
+      "target": "messages",
+      "type": "parent"
+    },
+    {
+      "source": "messages",
+      "target": "npm:@atlas/chat-bridge",
+      "type": "parent"
+    },
+    {
+      "source": "messages",
+      "target": "npm:@atlas/notify-hub",
+      "type": "parent"
+    },
+    {
+      "source": "developer",
+      "target": "code",
+      "type": "parent"
+    },
+    {
+      "source": "code",
+      "target": "npm:@atlas/code-explorer",
+      "type": "parent"
+    },
+    {
+      "source": "code",
+      "target": "npm:@atlas/dependency-lens",
+      "type": "parent"
+    },
+    {
+      "source": "developer",
+      "target": "quality",
+      "type": "parent"
+    },
+    {
+      "source": "quality",
+      "target": "npm:@atlas/test-pilot",
+      "type": "parent"
+    },
+    {
+      "source": "quality",
+      "target": "npm:@atlas/review-assistant",
+      "type": "parent"
+    },
+    {
+      "source": "npm:@atlas/web-reader",
+      "target": "npm:@atlas/site-crawler",
+      "type": "duplicate",
+      "weight": 0.8,
+      "note": "示例关系，用于演示图谱导航"
+    },
+    {
+      "source": "npm:@atlas/semantic-search",
+      "target": "npm:@atlas/vector-store",
+      "type": "similar",
+      "weight": 0.8,
+      "note": "示例关系，用于演示图谱导航"
+    },
+    {
+      "source": "npm:@atlas/flow-builder",
+      "target": "npm:@atlas/task-runner",
+      "type": "depends",
+      "weight": 0.8,
+      "note": "示例关系，用于演示图谱导航"
+    },
+    {
+      "source": "npm:@atlas/review-assistant",
+      "target": "npm:@atlas/code-explorer",
+      "type": "extends",
+      "weight": 0.8,
+      "note": "示例关系，用于演示图谱导航"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "category_id": "knowledge",
+  "label": "知识与检索",
+  "plugins": [
+    "npm:@atlas/web-reader",
+    "npm:@atlas/site-crawler",
+    "npm:@atlas/semantic-search",
+    "npm:@atlas/vector-store"
+  ],
+  "union": [
+    {
+      "capability": "网页采集",
+      "provided_by": [
+        "npm:@atlas/web-reader",
+        "npm:@atlas/site-crawler"
+      ],
+      "best_impl": "npm:@atlas/web-reader",
+      "note": "示例 · 根据可组合性选择推荐实现"
+    },
+    {
+      "capability": "语义检索",
+      "provided_by": [
+        "npm:@atlas/semantic-search",
+        "npm:@atlas/vector-store"
+      ],
+      "best_impl": "npm:@atlas/semantic-search",
+      "note": "示例 · 根据可组合性选择推荐实现"
+    }
+  ],
+  "best_overall": "npm:@atlas/web-reader",
+  "duplicates": [
+    [
+      "npm:@atlas/web-reader",
+      "npm:@atlas/site-crawler"
+    ]
+  ],
+  "vision": "## 下一步愿景\n\n示例：统一能力接口，让插件在本地完成发现、组合与验证。",
+  "generated_at": "2026-11-10T00:00:00Z"
+}

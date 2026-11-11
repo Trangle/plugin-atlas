@@ -1,0 +1,7 @@
+- insert:
+    - id: plugin-atlas
+      name: 'dsh-plugin-atlas'
+      config: {}
+    - id: plugin-atlas-commands
+      name: 'dsh-plugin-atlas/commands'
+      config: {}

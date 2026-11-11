@@ -1,0 +1,39 @@
+{
+  "category_id": "workflow",
+  "label": "自动化工作流",
+  "plugins": [
+    "npm:@atlas/task-runner",
+    "npm:@atlas/flow-builder",
+    "npm:@atlas/chat-bridge",
+    "npm:@atlas/notify-hub"
+  ],
+  "union": [
+    {
+      "capability": "任务编排",
+      "provided_by": [
+        "npm:@atlas/task-runner",
+        "npm:@atlas/flow-builder"
+      ],
+      "best_impl": "npm:@atlas/task-runner",
+      "note": "示例 · 根据可组合性选择推荐实现"
+    },
+    {
+      "capability": "消息协作",
+      "provided_by": [
+        "npm:@atlas/chat-bridge",
+        "npm:@atlas/notify-hub"
+      ],
+      "best_impl": "npm:@atlas/chat-bridge",
+      "note": "示例 · 根据可组合性选择推荐实现"
+    }
+  ],
+  "best_overall": "npm:@atlas/task-runner",
+  "duplicates": [
+    [
+      "npm:@atlas/task-runner",
+      "npm:@atlas/flow-builder"
+    ]
+  ],
+  "vision": "## 下一步愿景\n\n示例：统一能力接口，让插件在本地完成发现、组合与验证。",
+  "generated_at": "2026-11-10T00:00:00Z"
+}

@@ -1,0 +1,39 @@
+{
+  "category_id": "developer",
+  "label": "开发者工具",
+  "plugins": [
+    "npm:@atlas/code-explorer",
+    "npm:@atlas/dependency-lens",
+    "npm:@atlas/test-pilot",
+    "npm:@atlas/review-assistant"
+  ],
+  "union": [
+    {
+      "capability": "代码理解",
+      "provided_by": [
+        "npm:@atlas/code-explorer",
+        "npm:@atlas/dependency-lens"
+      ],
+      "best_impl": "npm:@atlas/code-explorer",
+      "note": "示例 · 根据可组合性选择推荐实现"
+    },
+    {
+      "capability": "质量验证",
+      "provided_by": [
+        "npm:@atlas/test-pilot",
+        "npm:@atlas/review-assistant"
+      ],
+      "best_impl": "npm:@atlas/test-pilot",
+      "note": "示例 · 根据可组合性选择推荐实现"
+    }
+  ],
+  "best_overall": "npm:@atlas/code-explorer",
+  "duplicates": [
+    [
+      "npm:@atlas/code-explorer",
+      "npm:@atlas/dependency-lens"
+    ]
+  ],
+  "vision": "## 下一步愿景\n\n示例：统一能力接口，让插件在本地完成发现、组合与验证。",
+  "generated_at": "2026-11-10T00:00:00Z"
+}

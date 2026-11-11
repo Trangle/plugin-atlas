@@ -360,6 +360,7 @@ async function buildSnapshot() {
     s.db.close();
     throw e;
   }
+  s.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   timings.fts = performance.now() - ftsStart;
   timings.index_changed = changed;
   timings.tfidf = 0;

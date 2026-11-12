@@ -70,6 +70,7 @@ function renderBranchGraph(container, graph, options = {}) {
   });
   const dots = [];
   const labels = [];
+  const hasClusters = graph.nodes.some((n) => n.clusterSize);
   for (const n of graph.nodes) {
     const x = cx(n.lane),
       y = cy(n.row);
@@ -101,8 +102,12 @@ function renderBranchGraph(container, graph, options = {}) {
           <button type="button" class="bg-name" data-id="${esc(n.id)}"${clusterClick} title="${title}">${title}</button>
           <span class="bg-meta">${esc(dateLabel(n.time))}</span>
           <span class="bg-meta bg-role-cell"${n.baseline && n.baseline !== n.id ? ` title="对比：${esc(n.baselineLabel || n.baseline)}"` : ''}>${diff}</span>
-          <span class="bg-meta bg-count">${n.clusterSize ? `${esc(n.clusterLabel)} · ${n.clusterSize}` : ''}</span>
-          <span class="bg-meta bg-expand-cell">${n.clusterSize ? `<button type="button" class="bg-name bg-cluster-toggle" data-cluster="${esc(n.cluster)}" aria-expanded="${!!n.expanded}">${n.expanded ? '收起' : '展开'}</button>` : ''}</span>
+          ${
+            hasClusters
+              ? `<span class="bg-meta bg-count">${n.clusterSize ? `${esc(n.clusterLabel)} · ${n.clusterSize}` : ''}</span>
+          <span class="bg-meta bg-expand-cell">${n.clusterSize ? `<button type="button" class="bg-name bg-cluster-toggle" data-cluster="${esc(n.cluster)}" aria-expanded="${!!n.expanded}">${n.expanded ? '收起' : '展开'}</button>` : ''}</span>`
+              : ''
+          }
           <span class="bg-tags">${unique}</span>
         </div>`,
     );
@@ -110,7 +115,7 @@ function renderBranchGraph(container, graph, options = {}) {
   const hidden = graph.truncated
     ? `<p class="bg-hint">${graph.kind === 'capability' ? `默认只显示簇代表，已隐藏 ${graph.hidden} 个成员。点击簇上的「展开」查看该簇。` : `已折叠 ${graph.hidden} 个分支。可展开全部，或点击折叠行查看。`}</p>`
     : '';
-  container.innerHTML = `${hidden}<div class="bg-scroll"><div class="bg-plot" style="width:${width}px;height:${height}px"><svg class="bg-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="分叉族 ${esc(graph.family)} 的分支图">${tracks.join('')}${edges.join('')}${dots.join('')}</svg>${labels.join('')}</div></div>`;
+  container.innerHTML = `${hidden}<div class="bg-scroll"><div class="bg-plot${hasClusters ? ' has-clusters' : ''}" style="width:${width}px;height:${height}px"><svg class="bg-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="分叉族 ${esc(graph.family)} 的分支图">${tracks.join('')}${edges.join('')}${dots.join('')}</svg>${labels.join('')}</div></div>`;
   const select = (id) => {
     if (typeof options.onSelect === 'function') options.onSelect(id);
   };

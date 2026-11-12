@@ -1,0 +1,26 @@
+{
+  "viewport": "1280x900",
+  "panel_width_px": 575,
+  "row_height_px": {
+    "web": 36,
+    "compact": 32
+  },
+  "name_column": "clamp(280px, 25vw, 320px)  — 1280-wide page lands at 320px",
+  "columns": {
+    "capability": "name | date | role-or-diff | cluster · size | expand | tags  (meta tracks are max-content; empty cluster/expand omitted via .has-clusters)",
+    "fork": "name | date | role-or-diff | tags  (no reserved cluster/expand tracks)"
+  },
+  "typography": "single line, nowrap, ellipsis, title=full name, no hover unwrap",
+  "large": {
+    "id": "ui.layout.sidebar",
+    "kind": "capability",
+    "lanes": 9,
+    "rows": 22
+  },
+  "small": {
+    "id": "dup:dev.ide.codeintel:2",
+    "kind": "fork",
+    "lanes": 2,
+    "rows": 12
+  }
+}

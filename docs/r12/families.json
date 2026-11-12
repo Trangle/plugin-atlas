@@ -1,0 +1,24 @@
+{
+  "viewport": "1280x900",
+  "panel_width_px": 575,
+  "row_rule": "time then id, then hoist each visible parent before its descendants; one node per row; forks only downward",
+  "graph_width": "pad + lanes*16 + 8",
+  "edge_style": "short straight diagonal on the adjacent row, then vertical; no cubic or right-angle mix",
+  "large": {
+    "id": "ui.layout.sidebar",
+    "kind": "capability",
+    "expand": 0,
+    "lanes": 11,
+    "rows": 22,
+    "hidden": 388,
+    "max_parallel_lanes": 9,
+    "rows_with_3plus_lanes": 18
+  },
+  "small": {
+    "id": "dup:dev.ide.codeintel:2",
+    "kind": "fork",
+    "expand": 1,
+    "lanes": 12,
+    "rows": 12
+  }
+}

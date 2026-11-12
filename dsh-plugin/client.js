@@ -55,7 +55,7 @@ function renderBranchGraph(container, graph, options = {}) {
   const rowH = compact ? 52 : 64;
   const pad = compact ? 12 : 20;
   const laneW = 16;
-  const labelX = pad + graph.lanes * laneW + 10;
+  const labelX = pad + graph.lanes * laneW + 8;
   const width = Math.max(labelX + 200 + pad, container.clientWidth || (compact ? 340 : 560));
   const height = pad * 2 + graph.rows * rowH;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -64,9 +64,9 @@ function renderBranchGraph(container, graph, options = {}) {
   const tracks = [];
   for (let lane = 0; lane < graph.lanes; lane++) {
     const nodes = graph.nodes.filter((n) => n.lane === lane);
-    if (!nodes.length && lane !== 0) continue;
-    const y1 = lane === 0 ? pad : cy(Math.min(...nodes.map((n) => n.row)));
-    const y2 = lane === 0 ? height - pad : cy(Math.max(...nodes.map((n) => n.row)));
+    if (!nodes.length) continue;
+    const y1 = cy(Math.min(...nodes.map((n) => n.row)));
+    const y2 = cy(Math.max(...nodes.map((n) => n.row)));
     tracks.push(
       `<line class="bg-track${lane === 0 ? " trunk" : ""}" x1="${cx(lane)}" y1="${y1}" x2="${cx(lane)}" y2="${y2}" />`
     );
@@ -75,9 +75,7 @@ function renderBranchGraph(container, graph, options = {}) {
     const a = byId.get(e.from), b = byId.get(e.to);
     if (!a || !b) return "";
     const x1 = cx(e.fromLane ?? a.lane), y1 = cy(e.fromRow ?? a.row), x2 = cx(e.toLane ?? b.lane), y2 = cy(e.toRow ?? b.row);
-    const midY = (y1 + y2) / 2;
-    const laneSpan = Math.abs((e.toLane ?? b.lane) - (e.fromLane ?? a.lane));
-    const d = x1 === x2 ? `M ${x1} ${y1} L ${x2} ${y2}` : laneSpan <= 2 ? `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}` : `M ${x1} ${y1} L ${x1} ${y2} L ${x2} ${y2}`;
+    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
     return `<path class="bg-edge ${esc(e.type)}" d="${d}" fill="none" />`;
   });
   const dots = [];
@@ -86,16 +84,17 @@ function renderBranchGraph(container, graph, options = {}) {
     const x = cx(n.lane), y = cy(n.row);
     const status = n.status || "active";
     const title = esc(n.label || n.id);
-    const diff = n.role === "trunk" || n.role === "cluster-head" && (!n.baseline || n.baseline === n.id) || n.role === "collapsed" ? n.role === "collapsed" ? `<span class="bg-count">${n.count || 0}</span>` : `<span class="bg-role">${n.role === "trunk" ? "\u4E3B\u5E72" : "\u7C07\u4EE3\u8868"}</span>` : `<span class="bg-diff" title="${esc((n.plusCaps || []).join("\u3001"))}"><span class="plus">+${n.plus || 0}</span></span><span class="bg-diff" title="${esc((n.minusCaps || []).join("\u3001"))}"><span class="minus">\u2212${n.minus || 0}</span></span>`;
+    const diff = n.role === "trunk" || n.role === "cluster-head" && (!n.baseline || n.baseline === n.id) || n.role === "collapsed" ? n.role === "collapsed" ? `<span class="bg-count">+${n.count || 0}</span>` : `<span class="bg-role">${n.role === "trunk" ? "\u4E3B\u5E72" : "\u7C07\u4EE3\u8868"}</span>` : `<span class="bg-diff" title="${esc((n.plusCaps || []).join("\u3001"))}"><span class="plus">+${n.plus || 0}</span></span><span class="bg-diff" title="${esc((n.minusCaps || []).join("\u3001"))}"><span class="minus">\u2212${n.minus || 0}</span></span>`;
     const allCaps = n.unique || [];
     const unique = options.hideTags ? "" : allCaps.slice(0, 2).map((c) => `<span class="bg-cap">${esc(c)}</span>`).join("") + (allCaps.length > 2 ? `<span class="bg-more" data-id="${esc(n.id)}">+${allCaps.length - 2}</span>` : "");
     const selected = options.selectedId === n.id ? " selected" : "";
+    const clusterClick = n.role === "collapsed" && n.cluster ? ` data-cluster="${esc(n.cluster)}"` : "";
     dots.push(
-      `<circle class="bg-dot ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" cx="${x}" cy="${y}" r="${n.role === "trunk" ? 6 : 5}" />`
+      `<circle class="bg-dot ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}"${clusterClick} cx="${x}" cy="${y}" r="${n.role === "trunk" ? 6 : 5}" />`
     );
     labels.push(
       `<div class="bg-label ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" style="left:${labelX}px;top:${y - rowH / 2}px;right:${pad}px;height:${rowH}px">
-          <button type="button" class="bg-name" data-id="${esc(n.id)}" title="${title}">${title}</button>
+          <button type="button" class="bg-name" data-id="${esc(n.id)}"${clusterClick} title="${title}">${title}</button>
           <span class="bg-meta">${esc(dateLabel(n.time))}</span>
           ${diff}
           ${n.clusterSize ? `<span class="bg-count">${esc(n.clusterLabel)} \xB7 ${n.clusterSize}</span><button type="button" class="bg-name bg-cluster-toggle" data-cluster="${esc(n.cluster)}" aria-expanded="${!!n.expanded}">${n.expanded ? "\u6536\u8D77" : "\u5C55\u5F00"}</button>` : ""}
@@ -113,6 +112,7 @@ function renderBranchGraph(container, graph, options = {}) {
     el.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
+      if (el.getAttribute("data-cluster")) return;
       select(el.getAttribute("data-id"));
     });
   });

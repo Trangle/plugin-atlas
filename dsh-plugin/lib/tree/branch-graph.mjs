@@ -491,6 +491,7 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, expandC
     trunk,
     plan || null,
   ]);
+  const visibleTime = (items, id) => items.find((n) => n.id === id)?.time || 0;
   let shown = nodes,
     hidden = 0;
   limit = Math.min(12, Math.max(1, Math.floor(Number(limit) || 40)));
@@ -546,7 +547,7 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, expandC
         role: 'collapsed',
         count: items.length,
         parent,
-        time: items[0].time,
+        time: Math.max(...items.map((n) => n.time), visibleTime(nodes, parent)),
       })),
     ].sort((a, b) => a.time - b.time || a.id.localeCompare(b.id));
   }
@@ -558,23 +559,53 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, expandC
     shown = clusters.flatMap((cluster) => {
       const head = byId.get(cluster.representative);
       head.expanded = all || selected.has(cluster.id);
-      return [head, ...(head.expanded ? nodes.filter((n) => n.cluster === cluster.id && n.id !== head.id) : [])];
+      const members = nodes.filter((n) => n.cluster === cluster.id && n.id !== head.id);
+      if (head.expanded || !members.length) return [head, ...(head.expanded ? members : [])];
+      return [
+        head,
+        {
+          id: `collapsed:cluster:${cluster.id}`,
+          label: `+${members.length}`,
+          cluster: cluster.id,
+          role: 'collapsed',
+          count: members.length,
+          parent: head.id,
+          time: Math.max(head.time + 0.001, ...members.map((n) => n.time)),
+        },
+      ];
     });
-    hidden = nodes.length - shown.length;
+    hidden = shown.filter((n) => n.role === 'collapsed').reduce((sum, n) => sum + n.count, 0);
   }
+  shown.sort((a, b) => a.time - b.time || a.id.localeCompare(b.id));
   const visible = new Map(shown.map((n) => [n.id, n]));
-  for (const [row, node] of shown.entries()) node.row = row;
-  const children = new Map();
   for (const n of shown) {
     if (n.id === trunk) continue;
     let parent = n.parent;
-    while (parent && !visible.has(parent)) parent = parents.get(parent);
-    n.attach = parent && visible.has(parent) ? parent : null;
-    if (n.attach) {
-      if (!children.has(n.attach)) children.set(n.attach, []);
-      children.get(n.attach).push(n.id);
+    const seen = new Set([n.id]);
+    while (parent && !visible.has(parent) && !seen.has(parent)) {
+      seen.add(parent);
+      parent = parents.get(parent);
     }
+    if (seen.has(parent)) parent = null;
+    n.attach = parent && visible.has(parent) ? parent : null;
   }
+  const ordered = [],
+    visiting = new Set(),
+    placed = new Set();
+  const place = (node) => {
+    if (placed.has(node.id)) return;
+    visiting.add(node.id);
+    if (node.attach) {
+      if (visiting.has(node.attach)) node.attach = null;
+      else place(visible.get(node.attach));
+    }
+    visiting.delete(node.id);
+    placed.add(node.id);
+    ordered.push(node);
+  };
+  for (const node of shown) place(node);
+  shown = ordered;
+  for (const [row, node] of shown.entries()) node.row = row;
   const laneById = new Map([[trunk, 0]]);
   const clusterLanes = new Map();
   let laneCount = 1;
@@ -584,16 +615,19 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, expandC
   for (const node of shown) {
     if (node.id === trunk) node.lane = 0;
     else if (isCapability && node.cluster) node.lane = clusterLanes.get(node.cluster);
+    else if (node.role === 'collapsed') continue;
     else node.lane = laneCount++;
     laneById.set(node.id, node.lane);
+  }
+  if (!isCapability) {
+    for (const node of shown) if (node.role === 'collapsed' && node.attach) node.lane = laneById.get(node.attach);
   }
   const edges = [];
   const segment = (from, to, type) => {
     const a = visible.get(from),
       b = visible.get(to);
-    if (!a || !b || a.row === b.row) return;
-    const direction = Math.sign(b.row - a.row);
-    const bendRow = b.row - direction;
+    if (!a || !b || a.row >= b.row) return;
+    const bendRow = b.row - 1;
     if (a.row !== bendRow)
       edges.push({ from, to, type: 'line', fromRow: a.row, toRow: bendRow, fromLane: a.lane, toLane: a.lane });
     edges.push({

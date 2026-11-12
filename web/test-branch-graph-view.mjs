@@ -103,6 +103,25 @@ test('圆点与标签行中心及固定泳道对齐', () => {
     assert.equal(circles[i][1], labels[i][1]);
     assert.ok(Math.abs(Number(circles[i][3]) - (Number(labels[i][3]) + Number(labels[i][4]) / 2)) <= 1);
     assert.equal(Number(circles[i][2]), 20 + i * 16 + 8);
-    assert.equal(Number(labels[i][2]), 20 + 3 * 16 + 10);
+    assert.equal(Number(labels[i][2]), 20 + 3 * 16 + 8);
   }
+});
+
+test('跨泳道采用斜线且主干轨道止于末节点', () => {
+  const container = { innerHTML: '', querySelectorAll: () => [] };
+  const nodes = [
+    { id: 'a', lane: 0, row: 0, role: 'trunk' },
+    { id: 'b', lane: 2, row: 1, role: 'fork' },
+    { id: 'c', lane: 0, row: 2, role: 'fork' },
+  ];
+  renderBranchGraph(container, {
+    family: 'x',
+    nodes,
+    lanes: 3,
+    rows: 4,
+    edges: [{ from: 'a', to: 'b', type: 'fork' }],
+  });
+  assert.match(container.innerHTML, /d="M 28 52 L 60 116"/);
+  assert.doesNotMatch(container.innerHTML, /d="[^"]* C |d="[^"]* L [^"]* L /);
+  assert.match(container.innerHTML, /bg-track trunk" x1="28" y1="52" x2="28" y2="180"/);
 });

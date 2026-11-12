@@ -22,12 +22,15 @@ function renderBranchGraph(container, graph, options = {}) {
     return;
   }
   const compact = !!options.compact;
-  const laneW = compact ? 18 : 22;
-  const rowH = compact ? 40 : 48;
+  const rowH = compact ? 52 : 64;
   const pad = compact ? 12 : 20;
+  const preferredLaneW = compact ? 28 : 36;
+  const reserved = compact ? 200 : 480;
+  const avail = container.clientWidth || (compact ? 560 : 1280);
+  const fitted = (avail - reserved - pad * 2 - 14) / Math.max(1, graph.lanes);
+  const laneW = Math.max(compact ? 16 : 18, Math.min(preferredLaneW, fitted || preferredLaneW));
   const labelX = pad + graph.lanes * laneW + 14;
-  const labelW = compact ? 280 : 850;
-  const width = Math.max(labelX + labelW + pad, compact ? 340 : 560);
+  const width = Math.max(labelX + 200 + pad, container.clientWidth || (compact ? 340 : 560));
   const height = pad * 2 + graph.rows * rowH;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const cx = (lane) => pad + lane * laneW + 6;
@@ -50,7 +53,7 @@ function renderBranchGraph(container, graph, options = {}) {
       y1 = cy(a.row),
       x2 = cx(b.lane),
       y2 = cy(b.row);
-    const midY = e.type === 'merge-suggest' ? (y1 + y2) / 2 : y1 + Math.min(18, (y2 - y1) / 2);
+    const midY = e.type === 'merge-suggest' ? (y1 + y2) / 2 : y1 + Math.min(rowH * 0.45, Math.max(20, (y2 - y1) / 2));
     const d =
       e.type === 'merge-suggest'
         ? `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`
@@ -72,18 +75,20 @@ function renderBranchGraph(container, graph, options = {}) {
           ? `<span class="bg-count">${n.count || 0}</span>`
           : '<span class="bg-role">主干</span>'
         : `<span class="bg-diff" title="${esc((n.plusCaps || []).join('、'))}"><span class="plus">+${n.plus || 0}</span></span><span class="bg-diff" title="${esc((n.minusCaps || []).join('、'))}"><span class="minus">−${n.minus || 0}</span></span>`;
-    const unique = compact
+    const allCaps = n.unique || [];
+    const unique = options.hideTags
       ? ''
-      : (n.unique || [])
-          .slice(0, 4)
+      : allCaps
+          .slice(0, 2)
           .map((c) => `<span class="bg-cap">${esc(c)}</span>`)
-          .join('');
+          .join('') +
+        (allCaps.length > 2 ? `<span class="bg-more" data-id="${esc(n.id)}">+${allCaps.length - 2}</span>` : '');
     const selected = options.selectedId === n.id ? ' selected' : '';
     dots.push(
       `<circle class="bg-dot ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" cx="${x}" cy="${y}" r="${n.role === 'trunk' ? 6 : 5}" />`,
     );
     labels.push(
-      `<div class="bg-label ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" style="left:${labelX}px;top:${y - rowH / 2}px;width:${labelW}px;height:${rowH}px">
+      `<div class="bg-label ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" style="left:${labelX}px;top:${y - rowH / 2}px;right:${pad}px;height:${rowH}px">
           <button type="button" class="bg-name" data-id="${esc(n.id)}" title="${title}">${title}</button>
           <span class="bg-meta">${esc(dateLabel(n.time))}</span>
           ${diff}
@@ -92,7 +97,7 @@ function renderBranchGraph(container, graph, options = {}) {
     );
   }
   const hidden = graph.truncated
-    ? `<p class="bg-hint">已折叠 ${graph.hidden} 个分支。可展开全部，或点击「另 N 个分支」查看。</p>`
+    ? `<p class="bg-hint">已折叠 ${graph.hidden} 个分支。可展开全部，或点击折叠行查看。</p>`
     : '';
   container.innerHTML = `${hidden}<div class="bg-scroll"><div class="bg-plot" style="width:${width}px;height:${height}px"><svg class="bg-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="分叉族 ${esc(graph.family)} 的分支图">${tracks.join('')}${edges.join('')}${dots.join('')}</svg>${labels.join('')}</div></div>`;
   const select = (id) => {
@@ -105,6 +110,12 @@ function renderBranchGraph(container, graph, options = {}) {
       select(el.getAttribute('data-id'));
     });
   });
+  const trunkNode = graph.nodes.find((n) => n.role === 'trunk');
+  const scroll = container.querySelector?.('.bg-scroll');
+  if (trunkNode && scroll) {
+    const y = cy(trunkNode.row) - Math.min(200, Math.max(80, scroll.clientHeight / 3));
+    scroll.scrollTop = Math.max(0, y);
+  }
 }
 
 export { renderBranchGraph, dateLabel };

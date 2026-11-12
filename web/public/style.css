@@ -711,8 +711,21 @@ main.graph-mode #detail {
   padding-left: 22px;
   overflow-wrap: anywhere;
 }
+main.graph-mode .bg-label {
+  font-size: 14px;
+  gap: 8px;
+  line-height: 1.35;
+}
 main.graph-mode .bg-name {
-  max-width: 380px;
+  max-width: none;
+}
+main.graph-mode .bg-cap,
+main.graph-mode .bg-more,
+main.graph-mode .bg-meta,
+main.graph-mode .bg-role,
+main.graph-mode .bg-diff,
+main.graph-mode .bg-count {
+  font-size: 12px;
 }
 main.graph-mode .bg-cap {
   max-width: 180px;
@@ -720,6 +733,7 @@ main.graph-mode .bg-cap {
 
 main.graph-mode .bg-name:hover,
 main.graph-mode .bg-name:focus {
+  -webkit-line-clamp: unset;
   max-width: none;
   white-space: normal;
   overflow: visible;
@@ -730,4 +744,24 @@ main.graph-mode .bg-name:focus {
 
 body:has(#graph-drawer:not([hidden])) main.graph-mode {
   padding-right: min(440px, 100vw);
+}
+
+.bg-plot .bg-name {
+  max-width: none;
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+}
+.bg-more {
+  pointer-events: auto;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.bg-cap {
+  font-size: 12px;
 }

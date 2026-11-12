@@ -44,7 +44,7 @@ test('renderBranchGraph draws trunk, fork, merge-suggest, diffs and unique caps'
         minus: 1,
         plusCaps: ['ui'],
         minusCaps: ['old'],
-        unique: ['new-cap'],
+        unique: ['new-cap', 'second', 'third', 'fourth'],
       },
       { id: 'collapsed:p0:1', label: '另 12 个分支', role: 'collapsed', status: 'active', lane: 1, row: 2, count: 12 },
     ],
@@ -64,4 +64,20 @@ test('renderBranchGraph draws trunk, fork, merge-suggest, diffs and unique caps'
   assert.match(container.innerHTML, /主干/);
   const buttons = container.querySelectorAll('[data-id]');
   assert.ok(buttons.length >= 1);
+});
+
+test('标签最多显示两个，窄侧栏可隐藏标签', () => {
+  const container = { innerHTML: '', querySelectorAll: () => [] };
+  const graph = {
+    family: 'x',
+    lanes: 1,
+    rows: 1,
+    edges: [],
+    nodes: [{ id: 'a', role: 'trunk', row: 0, lane: 0, unique: ['one', 'two', 'three', 'four'] }],
+  };
+  renderBranchGraph(container, graph);
+  assert.equal((container.innerHTML.match(/class="bg-cap"/g) || []).length, 2);
+  assert.match(container.innerHTML, /class="bg-more"[^>]*>\+2/);
+  renderBranchGraph(container, graph, { hideTags: true });
+  assert.doesNotMatch(container.innerHTML, /bg-cap|bg-more/);
 });

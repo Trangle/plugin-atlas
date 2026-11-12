@@ -40,7 +40,7 @@ test('分叉、重复、能力差异和合并建议', () => {
   assert.equal(p2.parent, 'P1');
   assert.notEqual(p2.lane, p1.lane);
   assert.equal(p2.role, 'subfork');
-  assert.equal(p3.lane, p1.lane);
+  assert.notEqual(p3.lane, p1.lane);
   assert.equal(p3.status, 'duplicate');
   assert.equal(p3.parent, 'P0');
   assert.deepEqual(p1.plusCaps, ['D']);
@@ -79,4 +79,75 @@ test('399 成员性能', () => {
   start = performance.now();
   buildBranchGraph(index, family, { fusion, plan, expand: true });
   assert.ok(performance.now() - start < 1000);
+});
+
+test('能力族按子能力聚类、按簇折叠并相对代表比较', () => {
+  const plugins = Array.from({ length: 20 }, (_, i) => ({
+    id: `C${i}`,
+    capabilities: ['shared', i < 10 ? 'alpha' : 'beta', ...(i === 1 ? ['extra'] : [])],
+    stars: i === 0 || i === 10 ? 100 : 0,
+  }));
+  const index = buildTree({
+    graph: {
+      nodes: [
+        { id: 'branch', type: 'branch', plugin_ids: plugins.map((p) => p.id) },
+        ...plugins.map((p) => ({ id: p.id, type: 'plugin', parent: 'branch' })),
+      ],
+    },
+    plugins,
+  });
+  const family = { id: 'ui.layout.sidebar', branch: 'branch', members: plugins.map((p) => p.id) };
+  const graph = buildBranchGraph(index, family, { limit: 6 });
+  assert.equal(graph.kind, 'capability');
+  assert.equal(graph.clusters.length, 2);
+  const reps = graph.clusters.map((c) => graph.nodes.find((n) => n.id === c.representative));
+  assert.notEqual(reps[0].lane, reps[1].lane);
+  const full = buildBranchGraph(index, family, { expand: true });
+  const member = full.nodes.find((n) => n.id === 'C1');
+  assert.equal(member.baseline, 'C0');
+  assert.deepEqual(member.plusCaps, ['extra']);
+  assert.deepEqual(member.minusCaps, []);
+  const collapsed = graph.nodes.filter((n) => n.role === 'collapsed');
+  assert.equal(collapsed.length, 2);
+  for (const node of collapsed) {
+    assert.match(node.id, /^collapsed:cluster:/);
+    assert.ok(node.label.includes(node.clusterLabel));
+    assert.equal(node.parent, graph.clusters.find((c) => c.id === node.cluster).representative);
+  }
+});
+
+test('空能力插件按名称词聚类，避免全部落入其他', () => {
+  const plugins = [
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `W${i}`,
+      name: `dsh-workspace-group-${i}`,
+      summary: '从侧边栏打开工作区文件夹',
+      created_at: '2021-01-01',
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `S${i}`,
+      name: `dsh-session-list-${i}`,
+      summary: '管理会话列表与置顶',
+      created_at: '2021-02-01',
+    })),
+  ];
+  const index = buildTree({
+    graph: {
+      nodes: [
+        { id: 'branch', type: 'branch', plugin_ids: plugins.map((p) => p.id) },
+        ...plugins.map((p) => ({ id: p.id, type: 'plugin', parent: 'branch' })),
+      ],
+    },
+    plugins,
+  });
+  const family = { id: 'ui.layout.sidebar', branch: 'branch', members: plugins.map((p) => p.id) };
+  const graph = buildBranchGraph(index, family, { expand: true });
+  assert.equal(graph.kind, 'capability');
+  assert.ok(graph.clusters.length >= 2);
+  const other = graph.clusters.find((c) => c.label === '其他');
+  assert.ok(!other || other.size < plugins.length / 2);
+  const clusterOf = (id) => graph.nodes.find((n) => n.id === id).cluster;
+  assert.notEqual(clusterOf('W0'), clusterOf('S0'));
+  assert.equal(clusterOf('W1'), clusterOf('W0'));
+  assert.equal(clusterOf('S1'), clusterOf('S0'));
 });

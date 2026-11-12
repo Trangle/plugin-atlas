@@ -1,0 +1,134 @@
+{
+  "viewport": "1280x900",
+  "panel_width_px": 575,
+  "large": {
+    "id": "ui.layout.sidebar",
+    "kind": "capability",
+    "members": 399,
+    "trunk": "npm:@michengai/dsh-codex-ui",
+    "clusters": [
+      {
+        "id": "43cabc147961",
+        "label": "workspace · 会话",
+        "representative": "npm:@michengai/dsh-codex-ui",
+        "size": 100
+      },
+      {
+        "id": "3b6520bfe516",
+        "label": "会话",
+        "representative": "npm:dsh-mobile-upgrade",
+        "size": 70
+      },
+      {
+        "id": "9364210ea42b",
+        "label": "其他",
+        "representative": "npm:dsh-group-status",
+        "size": 61
+      },
+      {
+        "id": "e80fdef4566b",
+        "label": "panel",
+        "representative": "npm:dsh-plugin-layout-organizer",
+        "size": 43
+      },
+      {
+        "id": "59f3ae5b1e71",
+        "label": "workspace · 工作区",
+        "representative": "npm:@adamcjm/dsh-enhancer",
+        "size": 36
+      },
+      {
+        "id": "8076b28f373a",
+        "label": "workspace · session",
+        "representative": "github:GT-610/dsh-workspace-organize",
+        "size": 17
+      },
+      {
+        "id": "d4cd9053a12d",
+        "label": "session",
+        "representative": "npm:dsh-session-deck",
+        "size": 14
+      },
+      {
+        "id": "6157fe4ca13f",
+        "label": "left",
+        "representative": "npm:dsh-better-left-sidebar",
+        "size": 10
+      },
+      {
+        "id": "32d78dbd6700",
+        "label": "row",
+        "representative": "github:DEVbyQIN/dsh-sidebar-marks",
+        "size": 9
+      },
+      {
+        "id": "aeda63a77ff2",
+        "label": "settings",
+        "representative": "npm:dsh-mobile-shell",
+        "size": 9
+      },
+      {
+        "id": "6a4e7509b796",
+        "label": "入口",
+        "representative": "npm:dsh-liao-sidebar",
+        "size": 5
+      },
+      {
+        "id": "1e37124ee6d6",
+        "label": "drag",
+        "representative": "github:YuyuYuu-wyt/dsh-image-drag",
+        "size": 4
+      },
+      {
+        "id": "dcb452a98294",
+        "label": "list",
+        "representative": "github:Biu-Bong/dsh-menu-hidden",
+        "size": 4
+      },
+      {
+        "id": "fc7ebd3b4f46",
+        "label": "工作区",
+        "representative": "github:zba0326/dsh-fold-panel-list",
+        "size": 4
+      },
+      {
+        "id": "f0268f5fe04b",
+        "label": "菜单",
+        "representative": "npm:dsh-knj-menu",
+        "size": 4
+      },
+      {
+        "id": "187e87df03ab",
+        "label": "right",
+        "representative": "github:yhPrime/dsh-sidebar-guide-scroll",
+        "size": 3
+      },
+      {
+        "id": "7e0af9338831",
+        "label": "sessions",
+        "representative": "github:XSJUSTC/dsh-favourite",
+        "size": 3
+      },
+      {
+        "id": "fe6c51c761a6",
+        "label": "workspace · menu",
+        "representative": "github:l-s-c/dsh-workspace-labels",
+        "size": 3
+      }
+    ],
+    "cluster_count": 18,
+    "lanes": 19,
+    "rows": 40,
+    "hidden": 377
+  },
+  "small": {
+    "id": "dup:dev.ide.codeintel:2",
+    "kind": "fork"
+  },
+  "times": {
+    "first_large_ms": 1424,
+    "cached_large_ms": 216,
+    "first_small_ms": 237,
+    "cached_small_ms": 193
+  }
+}

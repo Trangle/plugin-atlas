@@ -1,4 +1,4 @@
-# dsh-plugin-atlas 0.2.0
+# dsh-plugin-atlas 0.3.0
 
 宿主侧插件提供插件图谱的采集、增量摘要、搜索、比较和更新。Node.js 24；运行时无第三方依赖（dsh 服务由宿主提供）。
 

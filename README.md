@@ -1,208 +1,84 @@
 # Plugin Atlas
 
-Plugin Atlas maps the DeepSeek Harness (dsh) plugin ecosystem. It collects plugins from public sources and organizes them into a navigable capability graph. Search the catalog by text or meaning, and explore the combined capabilities of each category and branch. The project also includes a dsh bundle for querying a local Atlas service.
+Plugin Atlas maps the DeepSeek Harness (dsh) plugin ecosystem. It collects plugins from public sources and organizes them into a navigable capability graph, with local search and a dsh sidebar.
 
-## 项目是什么
+![Web 能力目录](docs/images/web-capability-catalog.png)
+*Web 能力目录：分类树与节点能力。*
 
-Plugin Atlas 是 DeepSeek Harness（dsh）插件生态的能力图谱。从 6 个来源抓取插件：awesome-dsh-plugin 索引、npm 关键词 `dsh-plugin`、npm 关键词 `cordis-plugin`、dsh 官方按需目录、Blue-Whale-Harness 的 `repos.txt` 和 GitHub 搜索。数据组织为分类 → 分支 → 插件三级图谱，并提供每个分类和分支的能力全集。
+![Web 融合计划](docs/images/web-fusion-plan.png)
+*Web 融合计划：代表、基底与吸收项。*
+
+![Web 大家族分支图](docs/images/web-branch-graph-large.png)
+*Web 大家族分支图。*
+
+![Web 小家族分支图](docs/images/web-branch-graph-small.png)
+*Web 小家族分支图。*
+
+![Web 暗色分支图](docs/images/web-branch-graph-dark.png)
+*Web 暗色主题分支图。*
+
+![dsh 面板分支图](docs/images/dsh-panel-branch-graph.png)
+*dsh 右侧栏分支图。*
 
 ## 功能
 
-- 折叠大图与懒加载：首屏只绘制分类与分支，展开分支后分页加载插件。
-- 全文搜索使用 SQLite FTS5 trigram；语义搜索使用 transformers.js MiniLM，首选 `Xenova/paraphrase-multilingual-MiniLM-L12-v2`。模型不可用或向量尚未完成时降级为 TF-IDF；`/api/status` 和页面显示实际生效的后端。
-- `github_only` 开关控制仅来自 GitHub 的仓库，这些仓库默认隐藏。
-- 疑似无关的记录标记为 `relevance: "suspect"`；过滤移出的仓库单独保存于 `data/filtered-out.jsonl`，可恢复。
-- `data/capabilities/` 保存分类与分支两级能力全集。
+Plugin Atlas 从 awesome-dsh-plugin 索引、npm 的 `dsh-plugin` 和 `cordis-plugin` 关键词、dsh 官方按需目录、Blue-Whale-Harness 的 `repos.txt` 和 GitHub 搜索六个来源采集插件，组织成分类 → 分支 → 插件的能力图谱。
 
-## 截图
+Web 默认打开「能力目录」，可切换「分支图」；dsh 右侧栏也提供这两个视图。目录详情展示界面、工具及其他能力、相对同级的独有和缺失能力，以及可用的分类能力全集。例如 `ui`（UI 增强）→ `ui.layout`（布局与面板组织）→ `ui.layout.sidebar`（侧边栏与会话组织）。插件详情还可查看 README。「分叉族」详情展示代表、计划状态和融合计划。
 
-默认视图：
+分支图支持能力族和 `dup:` 重复关系族。布局按时间排序后把父节点提到子节点之前，每行一个节点，分叉只向下延伸。第 0 道是主干，其余轨道按分叉顺序复用最左侧空闲泳道；默认只显示聚类代表，折叠簇以「+N · 名称 簇」标出。轨道宽 16px，边为三次贝塞尔 S 曲线（2px、圆角端点），建议合并边使用相同曲线的虚线。主干与各泳道使用 `light-dark()` 配色（浅色主干为 `#087e78`）。节点的新增、减少和独有能力相对父节点或聚类代表计算。Web 名称列宽为 `clamp(280px, 25vw, 320px)`，单行省略；点击节点可打开详情抽屉。
 
-![默认视图](docs/screenshot-r4-default.png)
+融合计划按能力覆盖、热度、最佳实现和近期程度选择最多三个代表，以首个代表为基底，列出补充能力、冲突和迁移步骤。计划保存在状态目录 `plans/`；成员、README 哈希、版本或能力变化会使计划过期。`/atlas plans refresh` 增量刷新过期计划；定时刷新只标记受影响计划并预演树同步，不自动生成计划。
 
-展开一个分支：
+搜索使用 SQLite FTS5 trigram 全文索引和 transformers.js MiniLM 语义索引；模型不可用或向量未完成时降级为 TF-IDF，页面和 `/api/status` 显示实际后端。`github_only` 记录默认隐藏，可通过开关包含；疑似无关记录标记为 `relevance: "suspect"`，过滤移出的记录保存在 `data/filtered-out.jsonl`，可恢复。
 
-![展开分支](docs/screenshot-r4-expanded.png)
+## 数据规模与存储
 
-## 数据规模
-
-以下为 v0.1.0 快照数据，日期为 2026-11-11，来自汇总和 `/api/status`：
+2026-11-12 运行服务的 `/api/status` 显示：
 
 | 指标 | 数量 |
 | --- | ---: |
-| 插件记录 | 35,099 |
-| 默认可见 | 14,757 |
-| `github_only` | 20,342 |
-| 疑似无关 | 113 |
-| 已过滤移出 | 38 |
+| 插件记录 / 默认可见 | 35,099 / 14,757 |
+| `github_only` / 疑似无关 / 已过滤 | 20,342 / 113 / 38 |
 | 图谱节点 / 边 | 35,775 / 43,381 |
 | 分类级能力文件 | 24 |
 | 索引文档 / 向量 | 74,975 / 74,975 |
 
-去重输入 35,266 条，输出 35,137 条：其中 83 条并入市场插件，46 条为 GitHub 别名合并。
+该服务的语义后端为 `Xenova/paraphrase-multilingual-MiniLM-L12-v2`。`data/` 不纳入 Git，除 `plugins.jsonl`、`graph.json`、`capabilities/` 等外，还包含 brotli 压缩内容的 `readme-store.sqlite` 和 `raw-store.sqlite`；本机分别约 125 MB 和 9.6 MB。采集通过 npm packument 或 GitHub 原始文件获取 README，HTTP 响应和 README 存入两个 SQLite 库，README 松散副本入库后删除，不长期保存插件仓库的完整检出。`crawler/slim.mjs` 可将旧的 `data/readmes/` 和 `data/raw/` 迁入这些库。
 
-## 目录结构
-
-```text
-plugin-atlas/
-├── crawler/          抓取、分析、去重、相关性过滤与能力生成脚本
-│   └── README.md     数据更新说明
-├── web/
-│   ├── server.mjs    本地服务与 API
-│   ├── public/       前端
-│   ├── fixtures/     小型示例数据
-│   ├── test.mjs      测试
-│   ├── screenshot.mjs 截图
-│   ├── start.sh      启动服务
-│   ├── stop.sh       停止服务
-│   └── ARCHITECTURE.md 架构说明
-├── dsh-plugin/       dsh 插件
-├── docs/             截图
-├── CONTRACT.md       数据契约
-└── data/             数据快照，不入库，从 Release 下载
+```mermaid
+flowchart LR
+    C[采集 collect] --> S[SQLite README / HTTP 缓存]
+    C --> B[plugins_base.jsonl]
+    B --> E[增量摘要 summarize]
+    S --> E
+    E --> O[状态目录 overlay]
+    O --> M[合并 merge]
+    B --> M
+    M --> D[plugins.jsonl + graph.json]
+    D --> W[Web 服务]
+    W --> UI[Web 与 dsh 面板：能力目录 / 分支图 / 融合计划]
 ```
 
-## 环境要求
+## 安装与运行
 
-- Node.js ≥ 24（本机验证 v24.22.1）和 npm；Linux 或 macOS。
-- 建议内存 ≥ 12 GB；完整数据常驻约 7 GB。`start.sh` 默认设置 `--max-old-space-size=8192`，可通过 `ATLAS_HEAP_MB` 调整。
-- 首次启动时，语义模型会从 Hugging Face 下载至 `web/.models/`，约 300 MB。离线或模型不可用时自动降级为 TF-IDF。
-- 可选 Chrome/Chromium：`test.mjs` 和 `screenshot.mjs` 使用 `playwright-core`。
-
-## 安装与启动
+使用 Node.js 24（本机验证 v24.22.2）和 npm；插件的 engines 声明 Node.js `>=22`。在仓库根目录安装 Web 依赖并启动：
 
 ```bash
-git clone https://github.com/Trangle/plugin-atlas.git && cd plugin-atlas && (cd web && npm ci)
-```
-
-按下一节下载并解压数据，然后在仓库根目录运行：
-
-```bash
+(cd web && npm ci)
 bash web/start.sh
 curl -s localhost:4380/api/status
 ```
 
-默认端口为 4380，可通过 `PORT` 修改；日志写入 `logs/web.log`。完整数据首次加载到可用约 2 分钟，实测约 114 秒，可通过状态接口查看 `loading`。打开 [http://127.0.0.1:4380](http://127.0.0.1:4380)。没有 `data/`，或数据不可解析或为空时，服务回退到 `web/fixtures/` 示例数据。
+打开 [http://127.0.0.1:4380](http://127.0.0.1:4380)。默认端口为 4380，可用 `PORT` 修改；日志写入 `logs/web.log`，停止使用 `bash web/stop.sh`。没有可用数据时服务回退到 `web/fixtures/`。首次使用语义模型时会下载约 300 MB 到 `web/.models/`。
 
-停止、测试和截图：
+`web/start.sh` 默认将 Node 堆上限设为 3072 MB，可用 `ATLAS_HEAP_MB` 覆盖。已加载服务常见 RSS 约 1.2–1.5 GB（本轮重载前为 1.33 GB；此前一轮在新进程上热启动后常驻约 1.51 GB，峰值约 1.46–1.63 GB）。本轮在已加载模型的长期进程上执行 `POST /api/reload` 约 9 秒返回，返回时约 1.47 GB，随后因新旧快照重叠一度超过 3 GB，约一分钟后回落至约 1.9 GB，请预留余量。这 9 秒是已建索引数据的热重载，并非首次冷启动（首次还需下载约 300 MB 语义模型）。
 
-```bash
-bash web/stop.sh
-(cd web && node test.mjs)
-(cd web && node screenshot.mjs --out ../docs/x.png)
-(cd web && node screenshot.mjs --out ../docs/x.png --expand auto)
-```
+历史数据可从 [Release v0.1.0](https://github.com/Trangle/plugin-atlas/releases/tag/v0.1.0) 获取；旧包中的松散 README 和原始缓存可用 `crawler/slim.mjs` 迁移到当前 SQLite 存储。数据更新及迁移细节见 [crawler/README.md](crawler/README.md)，数据格式见 [CONTRACT.md](CONTRACT.md)。已有服务可用 `curl -X POST localhost:4380/api/reload` 重载。
 
-## 下载数据
+## dsh 插件与流水线
 
-从 [Release v0.1.0](https://github.com/Trangle/plugin-atlas/releases/tag/v0.1.0) 下载 `plugin-atlas-data-v0.1.0.tgz` 和 `plugin-atlas-data-v0.1.0.tgz.sha256`。在仓库根目录可使用 GitHub CLI：
-
-```bash
-gh release download v0.1.0 --repo Trangle/plugin-atlas --pattern 'plugin-atlas-data-v0.1.0.tgz*'
-```
-
-或使用 curl：
-
-```bash
-curl -LO https://github.com/Trangle/plugin-atlas/releases/download/v0.1.0/plugin-atlas-data-v0.1.0.tgz
-curl -LO https://github.com/Trangle/plugin-atlas/releases/download/v0.1.0/plugin-atlas-data-v0.1.0.tgz.sha256
-```
-
-验证并解压，包内顶层就是 `data/`：
-
-```bash
-sha256sum -c plugin-atlas-data-v0.1.0.tgz.sha256
-# macOS: shasum -a 256 -c plugin-atlas-data-v0.1.0.tgz.sha256
-tar xzf plugin-atlas-data-v0.1.0.tgz
-```
-
-包内包含 `data/plugins.jsonl`、`data/graph.json`、`data/capabilities/`、`data/readmes/`、`data/raw/`（抓取缓存）、`data/work/`（模型批处理中间文件）和 `data/filtered-out.jsonl` 等。已有服务运行时可热加载：
-
-```bash
-curl -X POST localhost:4380/api/reload
-```
-
-## 更新数据
-
-详细说明见 [crawler/README.md](crawler/README.md)。在仓库根目录执行：
-
-```bash
-node crawler/update.mjs
-node crawler/analyze.mjs --stage all
-node crawler/analyze.mjs --stage relevance
-node crawler/analyze.mjs --stage merge
-node crawler/capabilities-category.mjs
-node crawler/refresh-capabilities.mjs
-curl -X POST localhost:4380/api/reload
-```
-
-`update.mjs` 增量抓取，支持 `--offline`、`--skip-github` 和 `--readme-limit N`。分析阶段也可单独指定 `--stage classify`、`branches`、`summarize`、`merge` 或 `all`。模型阶段默认使用 Codex CLI 的 `gpt-6.1-terra`；设置 `PLUGIN_ATLAS_LLM=dsh` 可改用 `dsh-run`。`SUMMARIZE_BATCH` 可调整摘要批次大小，默认 25，最小 5。需要模型的阶段会消耗对应账号额度。
-
-恢复过滤的仓库后重新合并并刷新能力：
-
-```bash
-node crawler/relevance-restore.mjs <id...>
-# 或：node crawler/relevance-restore.mjs --all
-node crawler/analyze.mjs --stage merge
-node crawler/refresh-capabilities.mjs
-curl -X POST localhost:4380/api/reload
-```
-
-## 作为 dsh 插件安装
-
-`dsh-plugin/`（`dsh-plugin-atlas` 0.2.0）是一个自包含的 dsh 组合包，已在 dsh 0.2.1-rc.5 实测。它覆盖 采 / 提 / 召 / 比 / 更 全流水线，并在 dsh web 右侧栏提供 Plugin Atlas 面板。
-
-### 架构
-
-```
-dsh-plugin/
-├─ index.js            宿主插件：注册工具、skill、定时任务；注入 ctx.llm / agentDefaultModel（可选）
-├─ commands.js         命令插件：/atlas 子命令、/atlas-open
-├─ client.js           Web 客户端（由 client/src/index.jsx 经 esbuild 构建），注册 sidebar.right 面板
-├─ cordis.patch.yml    dsh.bundle.patch：插入上面两个 Cordis 插件条目
-└─ lib/
-   ├─ pipeline/        collect(采) · extract(提) · recall(召) · compare(比) · update(更) · service · status
-   ├─ model/           可插拔模型后端：llm（经 dsh 插件 API 调用当前主模型）、mock
-   ├─ budget.mjs       单次与累计 token 预算，按模型返回的 usage 记账
-   ├─ scheduler.mjs    定时增量刷新（`schedule.intervalMinutes`，默认 0 即关闭，默认 dry-run）
-   └─ tools.mjs / commands.mjs / skill.mjs
-```
-
-- 采：复用 `crawler/update.mjs` 增量采集。
-- 提：按 README 哈希 / 版本判断新增或变更的插件，只对这些插件生成摘要，结果写入状态目录的 overlay。
-- 召：调用本机服务的全文 + 语义混合搜索，服务不可用时退回本地全文。
-- 比：同分支同类插件比较、疑似重复与相似度、能力并集与 best_impl。
-- 更：增量合并 overlay，依次运行 `dedup.mjs`、`relevance.mjs`、`refresh-capabilities.mjs`，再让服务增量重建索引（嵌入按内容哈希缓存）。合并前自动备份 `data/`。
-- 模型调用只经过 dsh 插件 API：`ctx.llm.prepareCall(...)` + `call.stream(...)`，路由取自 `agentDefaultModel.currentSelection()`，不调用外部 CLI。支持 `--backend mock`、`--dry-run`、并发上限、按批次断点续跑（`--resume`）、token 预算上限（超出即停止并保存进度）和进度显示。
-- 插件自行管理 4380 服务：检测、启动、重新加载、查看日志。
-
-### 命令与工具
-
-| 命令 | 作用 |
-| --- | --- |
-| `/atlas update [--apply] [--offline] [--skip-github]` | 增量采集并合并 |
-| `/atlas refresh [--apply] [--limit N] [--backend mock]` | 采集 → 增量摘要 → 合并 |
-| `/atlas summarize --incremental [--limit N] [--dry-run] [--backend mock\|llm] [--budget N] [--concurrency N] [--resume id]` | 增量摘要 |
-| `/atlas merge [--apply] [--dry-run]` | 合并 overlay、去重、相关性、能力全集、重建索引 |
-| `/atlas status` | 服务、进度、预算、overlay 状态 |
-| `/atlas compare <id...>` / `/atlas compare --branch <id>` | 同类比较与疑似重复 |
-| `/atlas service start\|stop\|reload\|status` | 管理本机服务 |
-| `/atlas <关键词>` | 搜索 |
-| `/atlas-open` | 显示网页地址（面板从右侧栏标签页打开） |
-
-每个命令都有对应工具：`plugin_atlas_update`、`plugin_atlas_refresh`、`plugin_atlas_summarize`、`plugin_atlas_merge`、`plugin_atlas_pipeline_status`、`plugin_atlas_compare`、`plugin_atlas_service`，并保留 `plugin_atlas_search`、`plugin_atlas_node`、`plugin_atlas_status`。写入类操作默认是 dry-run，需显式 `--apply`。详见 [dsh-plugin/README.md](dsh-plugin/README.md)。
-
-### 右侧栏面板
-
-`package.json` 声明 `dsh.client`（platform `web`，注入 `@deepseek-ai/dsh-client-ui-sidebar-right`），客户端通过 `sidebarRightTabs.register` 注册 Plugin Atlas 标签页：显示服务状态、分类图谱、混合搜索和插件详情（安装命令、能力、同分支最佳实现）。
-
-| 图谱 | 搜索 | 详情 |
-| --- | --- | --- |
-| ![面板图谱](docs/dsh-panel-default.png) | ![面板搜索](docs/dsh-panel-search.png) | ![面板详情](docs/dsh-panel-detail.png) |
-
-### 安装
-
-先启动服务 `bash web/start.sh`（之后也可用 `/atlas service start`），然后：
+`dsh-plugin/` 是 `dsh-plugin-atlas` 0.3.0 组合包。启动服务后，在仓库根目录安装：
 
 ```bash
 dsh plugin --profile web add "file:$(pwd)/dsh-plugin"
@@ -210,28 +86,50 @@ dsh plugin --profile web list --depth 0
 dsh --profile web --dump-config | grep -A3 plugin-atlas
 ```
 
-建议先在独立 profile 中试用，避免影响现有配置。`file:` 是复制安装，修改插件代码后需先卸载再添加：
+`file:` 是复制安装，修改插件后需先用 `dsh plugin --profile web remove dsh-plugin-atlas` 卸载再添加。配置、模型后端及完整参数细节见 [dsh-plugin/README.md](dsh-plugin/README.md)。
 
-```bash
-dsh plugin --profile web remove dsh-plugin-atlas
+- **采 collect**：`/atlas update` 增量采集，可合并已有 overlay。
+- **提 extract**：`/atlas summarize --incremental` 根据 README 哈希和版本提取变更，默认只写状态目录 overlay。
+- **召 recall**：`/atlas search` 或 `/atlas <关键词>` 使用本地服务混合搜索，服务不可用时退回本地全文搜索。
+- **比 compare**：`/atlas compare` 比较同类插件、能力和疑似重复项。
+- **更 update**：`/atlas merge` 合并 overlay，执行去重、相关性处理和能力刷新并重载；`/atlas refresh` 串联采集、增量摘要和合并。
+
+update、refresh、merge 默认预览，显式 `--apply` 或工具参数 `apply=true` 才写入；`--dry-run` 优先。summarize 默认写状态目录，`--dry-run` 预览。树同步写入生产数据需同时指定 `--apply --allow-production`（工具为 `apply=true`、`allow_production=true`）；可通过 history 查看备份并用 rollback 恢复。单次 token 预算默认 20,000，累计默认上限 100,000，mock 用量不计入上限。
+
+### 命令
+
+| 命令 | 作用 |
+| --- | --- |
+| `/atlas update [--apply] [--offline] [--skip-github]` | 采集并合并已有 overlay |
+| `/atlas refresh [--apply] [--limit N] [--backend mock]` | 采集、摘要、合并 |
+| `/atlas summarize --incremental [--limit N] [--ids a,b] [--dry-run] [--backend mock\|llm] [--budget N] [--concurrency N] [--resume id] [--force] [--include-filtered]` | 增量摘要 |
+| `/atlas merge [--apply] [--dry-run] [--all]` | 合并 overlay 并刷新 |
+| `/atlas tree [节点或关键词] [--depth N] [--caps]` | 查看树和能力 |
+| `/atlas tree find <关键词>` | 定位节点 |
+| `/atlas tree sync [--dry-run] [--apply] [--allow-production] [--limit N]` | 预演或同步树 |
+| `/atlas tree rollback [stamp]`、`/atlas tree history` | 恢复备份、查看历史 |
+| `/atlas families [分支] [--stale]` | 查看族和计划状态 |
+| `/atlas plan <族或分支或插件> [--refresh] [--dry-run] [--backend mock\|llm] [--budget N]` | 生成融合计划 |
+| `/atlas plans refresh [--limit N] [--concurrency N] [--dry-run] [--backend mock\|llm] [--budget N] [--resume id]` | 刷新过期计划 |
+| `/atlas status` | 查看状态 |
+| `/atlas compare <id...>` 或 `/atlas compare --branch <id>` | 比较插件 |
+| `/atlas service start\|stop\|reload\|status` | 管理本地服务 |
+| `/atlas search <关键词>` 或 `/atlas <关键词>` | 搜索 |
+| `/atlas-open` | 显示网页地址 |
+
+工具包括 `plugin_atlas_search`、`plugin_atlas_node`、`plugin_atlas_status`、`plugin_atlas_update`、`plugin_atlas_refresh`、`plugin_atlas_summarize`、`plugin_atlas_merge`、`plugin_atlas_pipeline_status`、`plugin_atlas_compare`、`plugin_atlas_service`、`plugin_atlas_tree`、`plugin_atlas_tree_find`、`plugin_atlas_tree_sync`、`plugin_atlas_tree_rollback`、`plugin_atlas_families`、`plugin_atlas_plan`、`plugin_atlas_plans_refresh`。工具参数使用下划线，如 `dry_run`、`skip_github`、`allow_production`。计划工具默认预演；命令 `/atlas plan` 使用 `--dry-run` 指定预演。
+
+## 目录与测试
+
+```text
+crawler/             采集、分析、能力生成和存储迁移
+web/                 本地服务、前端、测试及启动脚本
+dsh-plugin/          dsh 插件、流水线与右侧栏
+docs/images/         README 图片
+data/                本地数据及 SQLite 存储（不入 Git）
+CONTRACT.md          数据契约
 ```
 
-可在 `cordis.patch.yml` 或 profile 中设置插件配置：`root`（仓库路径）、`stateDir`、`baseUrl`（默认 `http://127.0.0.1:4380`，也可用 `PLUGIN_ATLAS_URL`）、`budgetTokens`。
-
-### 测试
-
-```bash
-(cd dsh-plugin && npm install && npm run build && npm test)   # 自测、流水线、客户端，不需要模型
-(cd dsh-plugin && ATLAS_LIVE=1 node test/selftest.mjs)        # 额外查询本机服务
-node web/test.mjs
-```
-
-`dsh-plugin/dev/fake-llm-provider/` 是仅供开发的本地假模型提供方（provider `atlas-fake`），用于在真实 dsh 运行时中验证 llm 后端链路而不消耗真实 token；它不随插件发布。
-
-## 数据来源与免责声明
-
-数据来自各市场公开数据、npm registry、GitHub 公开仓库及其 README。中文摘要、分类和分支归属、能力全集以及相关性判断由大模型（DeepSeek、OpenAI Codex gpt-6.1-terra）生成，可能有误或过时，请以插件原始仓库为准。插件版权归各自作者；README 原文仅用于索引展示。
-
-## License
+测试可运行 `(cd web && node test.mjs)` 和 `(cd dsh-plugin && npm install && npm run build && npm test)`。数据来源为公开市场、npm 和 GitHub；模型生成的摘要、分类和能力判断可能有误或过时，请以插件原始仓库为准。插件版权归各自作者，README 原文用于索引展示。
 
 MIT，见 [LICENSE](LICENSE)。

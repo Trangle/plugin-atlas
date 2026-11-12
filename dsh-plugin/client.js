@@ -263,7 +263,7 @@ function CapabilityCard({ node, caps, families, plans, onCopy, familyError, onFa
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: onFamilyRetry, children: "\u91CD\u8BD5" })
     ] }) : families === null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Skeleton, {}) : families.length ? families.map((f) => {
-      const record = plans[f.id], plan = record?.plan, command = record?.command || `/atlas plan ${f.id} --dry-run`;
+      const record = plans[f.id], plan = record?.plan?.plan || record?.plan, command = record?.command || `/atlas plan ${f.id} --dry-run`;
       return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "atlas-family", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", { children: [
           "\u5206\u53C9\u65CF ",

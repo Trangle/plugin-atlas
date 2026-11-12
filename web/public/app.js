@@ -324,8 +324,19 @@ async function renderFamilies() {
           copyButtons(target);
           continue;
         }
-        const p = record.plan || record;
-        const fmt = (x) => (typeof x === 'string' ? x : JSON.stringify(x));
+        const p = record.plan?.plan || record.plan || record;
+        const fmt = (x) => {
+          if (typeof x === 'string') return x;
+          if (x?.from) {
+            const caps = Array.isArray(x.capabilities) ? x.capabilities.join('、') : '';
+            return `${x.from}${caps ? '：' + caps : ''}${x.reason ? '（' + x.reason + '）' : ''}`;
+          }
+          if (x?.red_line) {
+            const between = Array.isArray(x.between) ? x.between.join('、') : '';
+            return `${x.red_line}${between ? ' · ' + between : ''}${x.note ? '（' + x.note + '）' : ''}`;
+          }
+          return JSON.stringify(x);
+        };
         target.innerHTML = `<h4>基底</h4><p>${esc(p.base || '待选择')}</p>${['absorb', 'conflicts', 'steps'].map((k, i) => `<h4>${['吸收项', '冲突', '步骤'][i]}</h4>${p[k]?.length ? `<ul>${p[k].map((x) => `<li>${esc(fmt(x))}</li>`).join('')}</ul>` : '<p>暂无</p>'}`).join('')}`;
       } catch (e) {
         if (target) target.innerHTML = errorText(e);

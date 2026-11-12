@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-atlas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "DeepSeek Harness Plugin Atlas integration",
   "type": "module",
   "main": "./index.js",

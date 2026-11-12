@@ -140,7 +140,7 @@ export function CapabilityCard({ node, caps, families, plans, onCopy, familyErro
       ) : families.length ? (
         families.map((f) => {
           const record = plans[f.id],
-            plan = record?.plan,
+            plan = record?.plan?.plan || record?.plan,
             command = record?.command || `/atlas plan ${f.id} --dry-run`;
           return (
             <div className="atlas-family" key={f.id}>

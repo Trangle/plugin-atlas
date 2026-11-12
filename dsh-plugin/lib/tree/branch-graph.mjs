@@ -156,7 +156,7 @@ const matches = (a, b) =>
   a.group === b.group && (normalize(a.label) === normalize(b.label) || similar(a.label, b.label));
 const difference = (a, b) => a.filter((x) => !b.some((y) => matches(x, y))).map((x) => x.label);
 
-function buildBranchGraph(index, family, { fusion, plan, expand = false, limit = 40 } = {}) {
+function buildBranchGraph(index, family, { fusion, plan, expand = false, expandClusters = [], limit = 40 } = {}) {
   if (typeof family !== 'object' || !family) {
     family = listFamilies(index, { fusion }).find((f) => f.id === family) || resolveFamily(index, family);
   }
@@ -364,6 +364,24 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, limit =
       if (clusterCache.size > 100) clusterCache.delete(clusterCache.keys().next().value);
     }
   }
+  if (clusters.length > 12) {
+    const copy = clusters.map((c) => ({ ...c, members: [...c.members] }));
+    const head = copy.slice(0, 11);
+    const extra = copy.slice(11).flatMap((c) => c.members);
+    const existing = head.find((c) => c.label === '其他');
+    if (existing) {
+      existing.members = [...existing.members, ...extra];
+      existing.size = existing.members.length;
+      existing.representative = [...existing.members].sort(rank)[0];
+      clusters = head;
+    } else {
+      clusters = [
+        ...head,
+        { id: 'other', label: '其他', members: extra, size: extra.length, representative: [...extra].sort(rank)[0] },
+      ];
+    }
+  }
+  const realParents = new Map(parents);
   const largestRoot = [...treeSizes]
     .filter(([, size]) => size > 1)
     .sort((a, b) => b[1] - a[1] || rank(a[0], b[0]))[0]?.[0];
@@ -413,10 +431,15 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, limit =
     .map((id) => {
       const p = index.plugins.get(id),
         parent = parents.get(id) || null;
-      const baseline = id === trunk ? null : parent || clusterById.get(id)?.representative || trunk;
+      const cluster = clusterById.get(id);
+      const baseline =
+        id === trunk
+          ? id
+          : realParents.get(id) ||
+            (isCapability && cluster?.representative === id ? id : cluster?.representative || parent || trunk);
       const baseCaps = caps.get(baseline) || [];
-      const plusCaps = id === trunk ? [] : difference(caps.get(id), baseCaps);
-      const minusCaps = id === trunk ? [] : difference(baseCaps, caps.get(id));
+      const plusCaps = baseline === id ? [] : difference(caps.get(id), baseCaps);
+      const minusCaps = baseline === id ? [] : difference(baseCaps, caps.get(id));
       const unique = (caps.get(id) || [])
         .filter(
           (cap) =>
@@ -440,7 +463,16 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, limit =
         baseline,
         cluster: clusterById.get(id)?.id || null,
         clusterLabel: clusterById.get(id)?.label || null,
-        role: id === trunk ? 'trunk' : parent === trunk ? 'fork' : 'subfork',
+        clusterSize: cluster?.representative === id ? cluster.size : 0,
+        baselineLabel: index.plugins.get(baseline)?.name || baseline,
+        role:
+          id === trunk
+            ? 'trunk'
+            : isCapability && cluster?.representative === id
+              ? 'cluster-head'
+              : parent === trunk
+                ? 'fork'
+                : 'subfork',
         status: duplicates.has(id) ? 'duplicate' : dead ? 'dead' : 'active',
         unique,
         plus: plusCaps.length,
@@ -461,8 +493,8 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, limit =
   ]);
   let shown = nodes,
     hidden = 0;
-  limit = Math.max(1, Math.floor(Number(limit) || 40));
-  if (!expand && nodes.length > limit) {
+  limit = Math.min(12, Math.max(1, Math.floor(Number(limit) || 40)));
+  if (!isCapability && expand !== true && expand !== '1' && nodes.length > limit) {
     const keep = new Set([
       trunk,
       ...(isCapability ? clusters.map((x) => x.representative) : reps.map((x) => x.id)),
@@ -518,6 +550,18 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, limit =
       })),
     ].sort((a, b) => a.time - b.time || a.id.localeCompare(b.id));
   }
+  if (isCapability) {
+    const selected = new Set(typeof expandClusters === 'string' ? expandClusters.split(',') : expandClusters);
+    if (typeof expand === 'string' && expand.startsWith('cluster:')) selected.add(expand.slice(8));
+    const all = expand === true || expand === '1';
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    shown = clusters.flatMap((cluster) => {
+      const head = byId.get(cluster.representative);
+      head.expanded = all || selected.has(cluster.id);
+      return [head, ...(head.expanded ? nodes.filter((n) => n.cluster === cluster.id && n.id !== head.id) : [])];
+    });
+    hidden = nodes.length - shown.length;
+  }
   const visible = new Map(shown.map((n) => [n.id, n]));
   for (const [row, node] of shown.entries()) node.row = row;
   const children = new Map();
@@ -539,18 +583,31 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, limit =
   }
   for (const node of shown) {
     if (node.id === trunk) node.lane = 0;
-    else if (isCapability && node.cluster && (reasons.get(node.id) === '能力簇' || node.role === 'collapsed'))
-      node.lane = clusterLanes.get(node.cluster);
+    else if (isCapability && node.cluster) node.lane = clusterLanes.get(node.cluster);
     else node.lane = laneCount++;
     laneById.set(node.id, node.lane);
   }
   const edges = [];
-  for (const n of shown) {
-    if (n.id === trunk || !n.attach) continue;
-    edges.push({ from: n.attach, to: n.id, type: laneById.get(n.attach) === n.lane ? 'line' : 'fork' });
-  }
-  for (const id of suggested)
-    if (visible.has(id) && visible.has(trunk)) edges.push({ from: id, to: trunk, type: 'merge-suggest' });
+  const segment = (from, to, type) => {
+    const a = visible.get(from),
+      b = visible.get(to);
+    if (!a || !b || a.row === b.row) return;
+    const direction = Math.sign(b.row - a.row);
+    const bendRow = b.row - direction;
+    if (a.row !== bendRow)
+      edges.push({ from, to, type: 'line', fromRow: a.row, toRow: bendRow, fromLane: a.lane, toLane: a.lane });
+    edges.push({
+      from,
+      to,
+      type: a.lane === b.lane ? 'line' : type,
+      fromRow: bendRow,
+      toRow: b.row,
+      fromLane: a.lane,
+      toLane: b.lane,
+    });
+  };
+  for (const n of shown) if (n.id !== trunk && n.attach) segment(n.attach, n.id, 'fork');
+  for (const id of suggested) if (visible.has(id) && visible.has(trunk)) segment(id, trunk, 'merge-suggest');
   return {
     family: family.id,
     kind: isCapability ? 'capability' : 'fork',

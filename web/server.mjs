@@ -709,9 +709,10 @@ async function treeApi(u, s = state) {
       s.graphPlansVersion = plansVersion;
     }
     const plan = plans.find((p) => p.family === family.id);
-    const expand = u.searchParams.get('expand') === '1';
-    const key = JSON.stringify([family.id, expand, plan]);
-    if (!cache.has(key)) cache.set(key, buildBranchGraph(index, family, { fusion, plan, expand }));
+    const expand = u.searchParams.get('expand') || '0';
+    const expandClusters = (u.searchParams.get('expandClusters') || '').split(',').filter(Boolean).sort();
+    const key = JSON.stringify([family.id, expand, expandClusters, plan]);
+    if (!cache.has(key)) cache.set(key, buildBranchGraph(index, family, { fusion, plan, expand, expandClusters }));
     return cache.get(key);
   }
   if (route === '/api/plan') {

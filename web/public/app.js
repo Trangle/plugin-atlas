@@ -402,6 +402,7 @@ async function ensureFamilyOptions() {
       .join('');
   return list;
 }
+let graphClusters = new Set();
 async function loadBranchGraph(family, expand = $('#graph-expand')?.checked) {
   if (!family) {
     $('#branch-graph').innerHTML = '<p class="muted">选择一个分叉族，查看 git 式分支图。</p>';
@@ -409,12 +410,16 @@ async function loadBranchGraph(family, expand = $('#graph-expand')?.checked) {
     return;
   }
   closeGraphDrawer();
+  if (graphFamily !== family) graphClusters.clear();
   graphFamily = family;
   if ($('#graph-family')) $('#graph-family').value = family;
   $('#branch-graph').innerHTML = skeleton + '<p class="muted">正在加载分支图。</p>';
   $('#graph-meta').textContent = '加载中';
   try {
-    const data = await api('/api/branch-graph?' + params({ family, expand: expand ? '1' : '0' }));
+    const data = await api(
+      '/api/branch-graph?' +
+        params({ family, expand: expand ? '1' : '0', expandClusters: [...graphClusters].join(',') }),
+    );
     graphData = data;
     const meta = [
       `主干 ${data.nodes.find((n) => n.id === data.trunk)?.label || data.trunk}`,
@@ -424,6 +429,15 @@ async function loadBranchGraph(family, expand = $('#graph-expand')?.checked) {
     $('#graph-meta').textContent = meta.join(' · ');
     renderBranchGraph($('#branch-graph'), data, {
       selectedId: selected,
+      onToggleCluster: (id) => {
+        if ($('#graph-expand')?.checked) {
+          graphClusters = new Set(data.clusters.map((cluster) => cluster.id));
+          $('#graph-expand').checked = false;
+        }
+        if (graphClusters.has(id)) graphClusters.delete(id);
+        else graphClusters.add(id);
+        loadBranchGraph(graphFamily, false);
+      },
       onSelect: async (id) => {
         if (id.startsWith('collapsed:')) {
           if ($('#graph-expand')) $('#graph-expand').checked = true;

@@ -765,3 +765,11 @@ body:has(#graph-drawer:not([hidden])) main.graph-mode {
 .bg-cap {
   font-size: 12px;
 }
+
+.bg-cluster-toggle {
+  flex: none;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent);
+  white-space: nowrap;
+}

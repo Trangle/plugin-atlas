@@ -67,7 +67,8 @@ test('折叠并展开大族', () => {
   const graph = buildBranchGraph(index, family, { fusion, plan, limit: 12 });
   assert.ok(graph.truncated);
   assert.ok(graph.nodes.length <= 12);
-  assert.ok(graph.nodes.some((n) => n.role === 'collapsed'));
+  assert.ok(graph.nodes.every((n) => n.role !== 'collapsed'));
+  assert.ok(graph.lanes <= 12);
   assert.equal(buildBranchGraph(index, family, { fusion, plan, expand: true }).nodes.length, 54);
 });
 
@@ -107,13 +108,20 @@ test('能力族按子能力聚类、按簇折叠并相对代表比较', () => {
   assert.equal(member.baseline, 'C0');
   assert.deepEqual(member.plusCaps, ['extra']);
   assert.deepEqual(member.minusCaps, []);
-  const collapsed = graph.nodes.filter((n) => n.role === 'collapsed');
-  assert.equal(collapsed.length, 2);
-  for (const node of collapsed) {
-    assert.match(node.id, /^collapsed:cluster:/);
-    assert.ok(node.label.includes(node.clusterLabel));
-    assert.equal(node.parent, graph.clusters.find((c) => c.id === node.cluster).representative);
+  assert.equal(graph.nodes.length, 2);
+  assert.ok(graph.lanes <= 12);
+  for (const rep of reps) {
+    assert.equal(rep.baseline, rep.id);
+    assert.deepEqual(rep.plusCaps, []);
+    assert.deepEqual(rep.minusCaps, []);
   }
+  const cluster = graph.clusters.find((c) => c.representative === 'C0');
+  const partial = buildBranchGraph(index, family, { expandClusters: [cluster.id] });
+  const group = partial.nodes.filter((n) => n.cluster === cluster.id);
+  assert.equal(group.length, cluster.size);
+  assert.ok(group.every((n, i) => n.lane === group[0].lane && n.row === group[0].row + i));
+  assert.equal(partial.nodes.length, cluster.size + 1);
+  for (const e of partial.edges) assert.ok(Math.abs(e.fromRow - e.toRow) === 1 || e.fromLane === e.toLane);
 });
 
 test('空能力插件按名称词聚类，避免全部落入其他', () => {

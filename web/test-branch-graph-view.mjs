@@ -81,3 +81,28 @@ test('标签最多显示两个，窄侧栏可隐藏标签', () => {
   renderBranchGraph(container, graph, { hideTags: true });
   assert.doesNotMatch(container.innerHTML, /bg-cap|bg-more/);
 });
+
+test('圆点与标签行中心及固定泳道对齐', () => {
+  const container = { innerHTML: '', clientWidth: 1800, querySelectorAll: () => [], querySelector: () => null };
+  const nodes = Array.from({ length: 3 }, (_, row) => ({
+    id: `n${row}`,
+    role: row ? 'fork' : 'trunk',
+    lane: row,
+    row,
+  }));
+  renderBranchGraph(container, { family: 'geometry', nodes, edges: [], lanes: 3, rows: 3 });
+  const circles = [...container.innerHTML.matchAll(/<circle[^>]*data-id="([^"]+)"[^>]*cx="([\d.]+)" cy="([\d.]+)"/g)];
+  const labels = [
+    ...container.innerHTML.matchAll(
+      /<div class="bg-label[^>]*data-id="([^"]+)" style="left:([\d.]+)px;top:([\d.]+)px;right:[\d.]+px;height:([\d.]+)px"/g,
+    ),
+  ];
+  assert.equal(circles.length, 3);
+  assert.equal(labels.length, 3);
+  for (let i = 0; i < 3; i++) {
+    assert.equal(circles[i][1], labels[i][1]);
+    assert.ok(Math.abs(Number(circles[i][3]) - (Number(labels[i][3]) + Number(labels[i][4]) / 2)) <= 1);
+    assert.equal(Number(circles[i][2]), 20 + i * 16 + 8);
+    assert.equal(Number(labels[i][2]), 20 + 3 * 16 + 10);
+  }
+});

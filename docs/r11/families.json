@@ -1,0 +1,21 @@
+{
+  "viewport": "1280x900",
+  "panel_width_px": 575,
+  "large": {
+    "id": "ui.layout.sidebar",
+    "kind": "capability",
+    "members": 399,
+    "trunk": "npm:@michengai/dsh-codex-ui",
+    "lanes": 11,
+    "rows": 11,
+    "hidden": 388,
+    "clusters": 11,
+    "note": "默认只显示簇代表；成员点击展开后沿该簇泳道排列"
+  },
+  "small": {
+    "id": "dup:dev.ide.codeintel:2",
+    "kind": "fork",
+    "lanes": 12,
+    "rows": 12
+  }
+}

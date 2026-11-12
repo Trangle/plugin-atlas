@@ -26,7 +26,7 @@ function renderBranchGraph(container, graph, options = {}) {
   const rowH = compact ? 40 : 48;
   const pad = compact ? 12 : 20;
   const labelX = pad + graph.lanes * laneW + 14;
-  const labelW = compact ? 280 : 420;
+  const labelW = compact ? 280 : 850;
   const width = Math.max(labelX + labelW + pad, compact ? 340 : 560);
   const height = pad * 2 + graph.rows * rowH;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -101,6 +101,7 @@ function renderBranchGraph(container, graph, options = {}) {
   container.querySelectorAll('[data-id]').forEach((el) => {
     el.addEventListener('click', (ev) => {
       ev.preventDefault();
+      ev.stopPropagation();
       select(el.getAttribute('data-id'));
     });
   });

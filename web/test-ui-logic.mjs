@@ -15,6 +15,7 @@ function element(selector) {
       checked: false,
       disabled: false,
       addEventListener() {},
+      classList: { toggle() {} },
       setAttribute() {},
       querySelectorAll: () => [],
       querySelector: () => element('.tab-panel'),
@@ -37,6 +38,7 @@ const treeNodes = [
 const plugin = { id: 'plugin', type: 'plugin', label: 'plugin', parent: 'branch', github_only: true };
 let missing = false;
 let serviceError = false;
+let graphSelect;
 const context = vm.createContext({
   document: {
     querySelector: element,
@@ -49,7 +51,9 @@ const context = vm.createContext({
   clearTimeout,
   DOMPurify: { sanitize: (s) => s },
   marked: { parse: (s) => s },
-  renderBranchGraph() {},
+  renderBranchGraph(_container, _data, options) {
+    graphSelect = options.onSelect;
+  },
   fetch: async (path) => {
     const url = new URL(path, 'http://localhost');
     let value;
@@ -80,7 +84,14 @@ const context = vm.createContext({
       }
     } else if (url.pathname === '/api/families') value = { families: [] };
     else if (url.pathname === '/api/branch-graph')
-      value = { family: 'branch', trunk: 'plugin', nodes: [], edges: [], lanes: 1, rows: 0 };
+      value = {
+        family: 'branch',
+        trunk: 'plugin',
+        nodes: [{ id: 'plugin', label: 'plugin', plusCaps: ['added'], minusCaps: ['removed'], unique: ['unique'] }],
+        edges: [],
+        lanes: 1,
+        rows: 1,
+      };
     else throw new Error(`Unexpected request: ${path}`);
     return { ok: status === 200, status, statusText: 'error', json: async () => value };
   },
@@ -91,7 +102,7 @@ vm.runInContext(
     .replace(/^import \{ renderBranchGraph \} from '\.\/branch-graph-view\.js';\n/, '')
     .replace(/refresh\(\)\.catch\(showError\);\s*$/, '') +
     `\n globalThis.ui = {
-  refresh, locate, treeKey,
+  refresh, locate, treeKey, openBranchGraph,
   setGithub(value) { includeGithub = value; },
   get selected() { return selected; },
   get opened() { return [...opened]; }
@@ -127,4 +138,12 @@ missing = false;
 await ui.locate('root');
 serviceError = true;
 await assert.rejects(ui.refresh(), /failure/);
+serviceError = false;
+await ui.openBranchGraph('branch');
+await graphSelect('plugin');
+assert.equal(element('#graph-drawer').hidden, false);
+for (const cap of ['added', 'removed', 'unique'])
+  assert.match(element('#graph-drawer-content').innerHTML, new RegExp(cap));
+await graphSelect('plugin');
+assert.equal(element('#graph-drawer').hidden, true);
 console.log('通过：路径定位、选中状态清理、键盘导航及服务错误传播。');

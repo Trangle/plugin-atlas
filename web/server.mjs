@@ -386,6 +386,9 @@ async function buildSnapshot() {
   }
   state = s;
   startFamilyComputation(s);
+  void treeIndex(s)
+    .then(() => startFusion(s))
+    .catch((e) => console.error('Tree index prewarm failed:', e));
   if (old) {
     old.familyWorker?.terminate();
     old.retired = true;
@@ -568,6 +571,8 @@ async function treeIndex(s) {
     s.treeIndexVersion = version;
     s.treeIndexPromise = null;
     s.fusionPromise = null;
+    s.fusion = null;
+    s.graphCache = new Map();
   }
   if (!s.treeIndexPromise)
     s.treeIndexPromise = import('../dsh-plugin/lib/pipeline/plan.mjs').then(({ loadIndex }) =>
@@ -597,6 +602,31 @@ function startFamilyComputation(s) {
     if (code && state === s && s.familyCache.computing)
       Object.assign(s.familyCache, { computing: false, error: `worker exited ${code}` });
   });
+}
+function startFusion(s) {
+  if (!s || s.fusionPromise) return s?.fusionPromise;
+  const version = s.treeIndexVersion;
+  const worker = new Worker(fileURLToPath(import.meta.url), { workerData: { fusionWorker: true, dir: s.dir } });
+  s.fusionPromise = new Promise((resolve) => {
+    let done = false;
+    const finish = (fusion) => {
+      if (done) return;
+      done = true;
+      if (fusion && s.treeIndexVersion === version) {
+        s.fusion = fusion;
+        (s.graphCache ||= new Map()).clear();
+      }
+      resolve(s.fusion);
+      worker.terminate();
+    };
+    worker.on('message', (fusion) => finish(fusion));
+    worker.on('error', (e) => {
+      console.error('Fusion computation failed:', e);
+      finish(null);
+    });
+    worker.on('exit', () => finish(null));
+  });
+  return s.fusionPromise;
 }
 async function computeFamilies({ dir, stateDir }) {
   const { loadIndex, listPlans } = await import('../dsh-plugin/lib/pipeline/plan.mjs');
@@ -665,26 +695,24 @@ async function treeApi(u, s = state) {
   }
   const plans = await plansFor(s, index);
   if (route === '/api/branch-graph') {
-    const { planTreeSync } = await import('../dsh-plugin/lib/tree/fusion.mjs');
     const { listFamilies, resolveFamily } = await import('../dsh-plugin/lib/tree/families.mjs');
     const { buildBranchGraph } = await import('../dsh-plugin/lib/tree/branch-graph.mjs');
-    if (!s.fusionPromise)
-      s.fusionPromise = Promise.resolve().then(() =>
-        planTreeSync({
-          graph: { nodes: [...index.nodes.values()] },
-          plugins: [...index.plugins.values()],
-          capabilities: index.capabilities,
-        }),
-      );
-    const fusion = await s.fusionPromise;
+    startFusion(s);
+    const fusion = s.fusion;
     const familyId = u.searchParams.get('family');
     const family = listFamilies(index, { fusion }).find((f) => f.id === familyId) || resolveFamily(index, familyId);
     if (!family) return null;
-    return buildBranchGraph(index, family, {
-      fusion,
-      plan: plans.find((p) => p.family === family.id),
-      expand: u.searchParams.get('expand') === '1',
-    });
+    const cache = (s.graphCache ||= new Map());
+    const plansVersion = JSON.stringify(plans);
+    if (s.graphPlansVersion !== plansVersion) {
+      cache.clear();
+      s.graphPlansVersion = plansVersion;
+    }
+    const plan = plans.find((p) => p.family === family.id);
+    const expand = u.searchParams.get('expand') === '1';
+    const key = JSON.stringify([family.id, expand, plan]);
+    if (!cache.has(key)) cache.set(key, buildBranchGraph(index, family, { fusion, plan, expand }));
+    return cache.get(key);
   }
   if (route === '/api/plan') {
     const plan = plans.find((p) => p.family === id);
@@ -1034,6 +1062,20 @@ const server = http.createServer(async (req, res) => {
     send(e.code === 'ENOENT' ? 404 : 400, { error: e.message });
   }
 });
+if (!isMainThread && workerData?.fusionWorker)
+  Promise.all([import('../dsh-plugin/lib/pipeline/plan.mjs'), import('../dsh-plugin/lib/tree/fusion.mjs')])
+    .then(async ([{ loadIndex }, { planTreeSync }]) => {
+      const index = await loadIndex({ dataDir: workerData.dir });
+      return planTreeSync({
+        graph: { nodes: [...index.nodes.values()] },
+        plugins: [...index.plugins.values()],
+        capabilities: index.capabilities,
+      });
+    })
+    .then((result) => parentPort.postMessage(result))
+    .catch((e) => {
+      throw e;
+    });
 if (!isMainThread && workerData?.familyWorker)
   computeFamilies(workerData)
     .then((result) => parentPort.postMessage(result))
@@ -1048,3 +1090,4 @@ if (isMainThread && process.env.ATLAS_INTERNAL_TEST !== '1')
   });
 
 export { reload, status, search, readmeDetail, treeApi, server };
+export const internalState = () => state;

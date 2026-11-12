@@ -342,6 +342,8 @@ function planCommand(id, command) {
 
 function setMainView(view) {
   mainView = view === 'graph' ? 'graph' : 'catalog';
+  $('main').classList.toggle('graph-mode', mainView === 'graph');
+  if (mainView !== 'graph') closeGraphDrawer();
   const catalog = mainView === 'catalog';
   $('#tab-catalog')?.setAttribute('aria-selected', String(catalog));
   $('#tab-graph')?.setAttribute('aria-selected', String(!catalog));
@@ -350,6 +352,40 @@ function setMainView(view) {
   if ($('#graph')) $('#graph').hidden = !catalog;
   if ($('#branch-graph-view')) $('#branch-graph-view').hidden = catalog;
 }
+let graphDrawerId = null;
+function closeGraphDrawer() {
+  graphDrawerId = null;
+  $('#graph-drawer').hidden = true;
+}
+async function openGraphDrawer(id) {
+  if (graphDrawerId === id) return closeGraphDrawer();
+  const node = graphData?.nodes.find((n) => n.id === id);
+  if (!node) return;
+  graphDrawerId = id;
+  $('#graph-drawer').hidden = false;
+  const content = $('#graph-drawer-content');
+  const groups = [
+    ['新增能力', node.plusCaps],
+    ['减少能力', node.minusCaps],
+    ['独有能力', node.unique],
+  ];
+  const diff = groups
+    .map(
+      ([title, values]) =>
+        `<h3>${title}</h3>${values?.length ? `<ul>${values.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>` : '<p class="muted">暂无</p>'}`,
+    )
+    .join('');
+  content.innerHTML = `<h2>${esc(node.label || id)}</h2>${diff}`;
+  try {
+    const result = await api('/api/node/' + encodeURIComponent(id));
+    if (graphDrawerId !== id) return;
+    const info = result.node || {};
+    content.innerHTML = `<h2>${esc(info.label || node.label || id)}</h2>${info.summary ? `<p>${esc(info.summary)}</p>` : ''}${diff}`;
+  } catch (_) {
+    // The graph still supplies the name and diff if details are unavailable.
+  }
+}
+$('#graph-drawer-close').addEventListener('click', closeGraphDrawer);
 async function ensureFamilyOptions() {
   if (familyOptions.length) return familyOptions;
   const all = await api('/api/families');
@@ -372,9 +408,10 @@ async function loadBranchGraph(family, expand = $('#graph-expand')?.checked) {
     $('#graph-meta').textContent = '';
     return;
   }
+  closeGraphDrawer();
   graphFamily = family;
   if ($('#graph-family')) $('#graph-family').value = family;
-  $('#branch-graph').innerHTML = skeleton + '<p class="muted">正在计算分叉关系，首次可能需要稍等。</p>';
+  $('#branch-graph').innerHTML = skeleton + '<p class="muted">正在加载分支图。</p>';
   $('#graph-meta').textContent = '加载中';
   try {
     const data = await api('/api/branch-graph?' + params({ family, expand: expand ? '1' : '0' }));
@@ -393,11 +430,7 @@ async function loadBranchGraph(family, expand = $('#graph-expand')?.checked) {
           await loadBranchGraph(graphFamily, true);
           return;
         }
-        try {
-          await locate(id);
-        } catch (e) {
-          $('#detail').innerHTML = errorText(e);
-        }
+        await openGraphDrawer(id);
       },
     });
   } catch (e) {

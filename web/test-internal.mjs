@@ -20,7 +20,7 @@ try {
   await fs.mkdir(path.join(tmp, 'readmes'), { recursive: true });
   await fs.writeFile(path.join(tmp, 'readmes/test.md'), 'dynamictoken ' + 'x'.repeat(210000));
   await fs.writeFile(file, plugins.map(JSON.stringify).join('\n'));
-  const { reload, status, search, readmeDetail, treeApi, server } = await import('./server.mjs');
+  const { reload, status, search, readmeDetail, treeApi, server, internalState } = await import('./server.mjs');
   const request = (url) =>
     new Promise((resolve) =>
       server.emit(
@@ -75,6 +75,10 @@ try {
   summary = (await request('/api/families?summary=1')).body;
   assert.equal(summary.families, all.body.families.length);
   const graphFamily = all.body.families.find((f) => f.members.length);
+  const snapshot = internalState();
+  snapshot.fusion = null;
+  snapshot.fusionPromise = new Promise(() => {});
+  snapshot.graphCache.clear();
   const branchGraph = await request(`/api/branch-graph?family=${encodeURIComponent(graphFamily.id)}&expand=1`);
   assert.equal(branchGraph.status, 200);
   assert.equal(branchGraph.body.family, graphFamily.id);

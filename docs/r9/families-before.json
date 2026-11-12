@@ -1,0 +1,10 @@
+{
+  "large": {
+    "id": "ui.layout.sidebar",
+    "members": 399
+  },
+  "small": {
+    "id": "dup:dev.ide.codeintel:2",
+    "members": 12
+  }
+}

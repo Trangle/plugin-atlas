@@ -652,7 +652,8 @@ th {
 }
 .bg-plot .bg-label {
   position: absolute;
-  display: flex;
+  display: grid;
+  grid-template-columns: 180px 85px 75px 150px 45px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -771,5 +772,13 @@ body:has(#graph-drawer:not([hidden])) main.graph-mode {
   font-size: 12px;
   font-weight: 650;
   color: var(--accent);
+  white-space: nowrap;
+}
+
+.bg-role-cell,
+.bg-count,
+.bg-tags {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }

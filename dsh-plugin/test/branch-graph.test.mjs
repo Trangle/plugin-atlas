@@ -62,9 +62,10 @@ test('分叉、重复、能力差异和合并建议', () => {
   assert.equal(p0.role, 'trunk');
   assert.notEqual(p1.lane, p0.lane);
   assert.equal(p2.parent, 'P1');
-  assert.notEqual(p2.lane, p1.lane);
+  assert.equal(p2.lane, p1.lane);
   assert.equal(p2.role, 'subfork');
-  assert.notEqual(p3.lane, p1.lane);
+  assert.equal(p3.lane, p1.lane);
+  assert.equal(graph.lanes, 2);
   assert.equal(p3.status, 'duplicate');
   assert.equal(p3.parent, 'P0');
   assert.deepEqual(p1.plusCaps, ['D']);
@@ -135,6 +136,10 @@ test('能力族按子能力聚类、按簇折叠并相对代表比较', () => {
   assert.deepEqual(member.plusCaps, ['extra']);
   assert.deepEqual(member.minusCaps, []);
   assert.equal(graph.nodes.length, 4);
+  for (const node of graph.nodes.filter((n) => n.role === 'collapsed')) {
+    const label = node.clusterLabel.replaceAll(' · ', '·');
+    assert.equal(node.label, `+${node.count} · ${label} 簇`);
+  }
   assert.ok(graph.lanes <= 12);
   for (const rep of reps) {
     assert.equal(rep.baseline, rep.id);
@@ -236,4 +241,58 @@ test('折叠簇按时间交错并保持并行泳道', () => {
   );
   assert.ok(group.every((n) => n.lane === group[0].lane));
   assert.ok(expanded.nodes.some((n) => n.cluster !== cluster.id && n.row > group[0].row && n.row < group[2].row));
+});
+
+test('按分叉顺序分配并复用泳道，减少斜线交叉', () => {
+  const groups = [
+    ['trunk', 8, 1, 20],
+    ['early', 2, 2, 5],
+    ['middle', 4, 3, 12],
+    ['late', 6, 7, 15],
+  ];
+  const plugins = groups.flatMap(([cap, size, start, end]) =>
+    Array.from({ length: size }, (_, i) => ({
+      id: `${cap}${i}`,
+      capabilities: [cap],
+      stars: i === 0 ? 100 : 0,
+      created_at: new Date(Date.UTC(2020, 0, i === 0 ? start : end)).toISOString(),
+    })),
+  );
+  const index = buildTree({
+    graph: {
+      nodes: [
+        { id: 'branch', type: 'branch', plugin_ids: plugins.map((p) => p.id) },
+        ...plugins.map((p) => ({ id: p.id, type: 'plugin', parent: 'branch' })),
+      ],
+    },
+    plugins,
+  });
+  const graph = buildBranchGraph(index, { id: 'fixture', branch: 'branch', members: plugins.map((p) => p.id) });
+  assertLayout(graph);
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  const crossing = (edges) =>
+    edges.reduce(
+      (sum, edge) =>
+        sum + (edge.toRow === edge.fromRow + 1 ? Math.max(0, Math.abs(edge.toLane - edge.fromLane) - 1) : 0),
+      0,
+    );
+  let nextLane = 1;
+  const oldLanes = new Map(
+    graph.clusters.map((cluster) => [cluster.id, cluster.id === byId.get(graph.trunk).cluster ? 0 : nextLane++]),
+  );
+  const oldEdges = graph.edges.map((edge) => ({
+    ...edge,
+    fromLane: oldLanes.get(byId.get(edge.from).cluster),
+    toLane:
+      edge.fromLane === edge.toLane
+        ? oldLanes.get(byId.get(edge.from).cluster)
+        : oldLanes.get(byId.get(edge.to).cluster),
+  }));
+  const current = crossing(graph.edges),
+    previous = crossing(oldEdges);
+  assert.ok(current < previous, `new ${current}, r12 ${previous}`);
+  assert.equal(byId.get('early0').lane, 1);
+  assert.ok(byId.get('collapsed:cluster:' + byId.get('early0').cluster).row < byId.get('late0').row);
+  assert.equal(byId.get('late0').lane, 1);
+  console.log(`lane traversal crossings: r12=${previous}, new=${current}`);
 });

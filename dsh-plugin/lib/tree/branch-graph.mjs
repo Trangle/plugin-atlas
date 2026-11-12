@@ -565,7 +565,8 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, expandC
         head,
         {
           id: `collapsed:cluster:${cluster.id}`,
-          label: `+${members.length}`,
+          label: `+${members.length} · ${cluster.label.replaceAll(' · ', '·')} 簇`,
+          clusterLabel: cluster.label,
           cluster: cluster.id,
           role: 'collapsed',
           count: members.length,
@@ -606,21 +607,35 @@ function buildBranchGraph(index, family, { fusion, plan, expand = false, expandC
   for (const node of shown) place(node);
   shown = ordered;
   for (const [row, node] of shown.entries()) node.row = row;
-  const laneById = new Map([[trunk, 0]]);
   const clusterLanes = new Map();
   let laneCount = 1;
   if (isCapability) {
-    for (const cluster of clusters) clusterLanes.set(cluster.id, cluster.members.includes(trunk) ? 0 : laneCount++);
+    const ranges = clusters
+      .map((cluster) => {
+        const rows = shown.filter((node) => node.cluster === cluster.id).map((node) => node.row);
+        return { cluster, start: Math.min(...rows), end: Math.max(...rows) };
+      })
+      .sort((a, b) => a.start - b.start);
+    const occupiedUntil = [Infinity];
+    for (const { cluster, start, end } of ranges) {
+      if (cluster.members.includes(trunk)) {
+        clusterLanes.set(cluster.id, 0);
+        continue;
+      }
+      let lane = 1;
+      while (occupiedUntil[lane] !== undefined && occupiedUntil[lane] >= start) lane++;
+      occupiedUntil[lane] = end;
+      clusterLanes.set(cluster.id, lane);
+      laneCount = Math.max(laneCount, lane + 1);
+    }
   }
   for (const node of shown) {
     if (node.id === trunk) node.lane = 0;
     else if (isCapability && node.cluster) node.lane = clusterLanes.get(node.cluster);
-    else if (node.role === 'collapsed') continue;
-    else node.lane = laneCount++;
-    laneById.set(node.id, node.lane);
-  }
-  if (!isCapability) {
-    for (const node of shown) if (node.role === 'collapsed' && node.attach) node.lane = laneById.get(node.attach);
+    else {
+      node.lane = 1;
+      laneCount = Math.max(laneCount, 2);
+    }
   }
   const edges = [];
   const segment = (from, to, type) => {

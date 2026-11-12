@@ -1,0 +1,73 @@
+{
+  "viewport": "1280x900",
+  "panel_width_px": 575,
+  "row_height_px": {
+    "web": 36,
+    "compact": 32
+  },
+  "edge": "M x1 y1 C x1 (y1+h/2), x2 (y2-h/2), x2 y2",
+  "palette": {
+    "light": [
+      "#087e78",
+      "#6384b9",
+      "#8b76b8",
+      "#639873",
+      "#b18a4b",
+      "#b97887",
+      "#5d99ae"
+    ],
+    "dark": [
+      "#73d6ca",
+      "#a5bde6",
+      "#c5b4e9",
+      "#a4d2ad",
+      "#e6c789",
+      "#e8adbb",
+      "#9bd2e1"
+    ]
+  },
+  "crossings_metric": "sum(max(0, |toLane-fromLane|-1)) on 1-row diagonals",
+  "large": {
+    "id": "ui.layout.sidebar",
+    "kind": "capability",
+    "expand": 0,
+    "r12": {
+      "lanes": 11,
+      "laneCross": 45,
+      "span_sum": 55,
+      "span_max": 10
+    },
+    "r13": {
+      "lanes": 9,
+      "rows": 22,
+      "hidden": 388,
+      "laneCross": 30,
+      "span_sum": 40,
+      "span_max": 8,
+      "max_parallel": 9,
+      "rows_with_3plus": 18
+    }
+  },
+  "small": {
+    "id": "dup:dev.ide.codeintel:2",
+    "kind": "fork",
+    "expand": 1,
+    "r12": {
+      "lanes": 12,
+      "laneCross": 55,
+      "span_sum": 66,
+      "span_max": 11
+    },
+    "r13": {
+      "lanes": 2,
+      "rows": 12,
+      "laneCross": 0,
+      "span_sum": 11,
+      "span_max": 1
+    }
+  },
+  "fixture_crossings": {
+    "r12": 3,
+    "r13": 1
+  }
+}

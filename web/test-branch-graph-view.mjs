@@ -40,6 +40,8 @@ test('renderBranchGraph draws trunk, fork, merge-suggest, diffs and unique caps'
         lane: 1,
         row: 1,
         time: Date.UTC(2024, 5, 1),
+        baseline: 'p0',
+        baselineLabel: 'Trunk',
         plus: 2,
         minus: 1,
         plusCaps: ['ui'],
@@ -59,6 +61,8 @@ test('renderBranchGraph draws trunk, fork, merge-suggest, diffs and unique caps'
   assert.match(container.innerHTML, /bg-edge merge-suggest/);
   assert.match(container.innerHTML, /\+2/);
   assert.match(container.innerHTML, /−1/);
+  assert.match(container.innerHTML, /title="对比：Trunk"/);
+  assert.match(container.innerHTML, /class="bg-edge merge-suggest" d="M [^"]* C /);
   assert.match(container.innerHTML, /new-cap/);
   assert.match(container.innerHTML, /已折叠 12/);
   assert.match(container.innerHTML, /主干/);
@@ -107,7 +111,7 @@ test('圆点与标签行中心及固定泳道对齐', () => {
   }
 });
 
-test('跨泳道采用斜线且主干轨道止于末节点', () => {
+test('跨泳道采用平滑三次曲线且主干轨道止于末节点', () => {
   const container = { innerHTML: '', querySelectorAll: () => [] };
   const nodes = [
     { id: 'a', lane: 0, row: 0, role: 'trunk' },
@@ -121,7 +125,7 @@ test('跨泳道采用斜线且主干轨道止于末节点', () => {
     rows: 4,
     edges: [{ from: 'a', to: 'b', type: 'fork' }],
   });
-  assert.match(container.innerHTML, /d="M 28 52 L 60 116"/);
-  assert.doesNotMatch(container.innerHTML, /d="[^"]* C |d="[^"]* L [^"]* L /);
-  assert.match(container.innerHTML, /bg-track trunk" x1="28" y1="52" x2="28" y2="180"/);
+  assert.match(container.innerHTML, /d="M 28 38 C 28 56, 60 56, 60 74"/);
+  assert.doesNotMatch(container.innerHTML, /d="M 28 38 [^"]* L /);
+  assert.match(container.innerHTML, /bg-track trunk" x1="28" y1="38" x2="28" y2="110"/);
 });

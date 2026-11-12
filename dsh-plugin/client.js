@@ -52,7 +52,7 @@ function renderBranchGraph(container, graph, options = {}) {
     return;
   }
   const compact = !!options.compact;
-  const rowH = compact ? 52 : 64;
+  const rowH = compact ? 32 : 36;
   const pad = compact ? 12 : 20;
   const laneW = 16;
   const labelX = pad + graph.lanes * laneW + 8;
@@ -61,6 +61,19 @@ function renderBranchGraph(container, graph, options = {}) {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const cx = (lane) => pad + lane * laneW + laneW / 2;
   const cy = (row) => pad + row * rowH + rowH / 2;
+  const palette = [
+    ["#087e78", "#73d6ca"],
+    ["#6384b9", "#a5bde6"],
+    ["#8b76b8", "#c5b4e9"],
+    ["#639873", "#a4d2ad"],
+    ["#b18a4b", "#e6c789"],
+    ["#b97887", "#e8adbb"],
+    ["#5d99ae", "#9bd2e1"]
+  ];
+  const laneColor = (lane) => {
+    const [light, dark] = palette[lane % palette.length];
+    return `light-dark(${light}, ${dark})`;
+  };
   const tracks = [];
   for (let lane = 0; lane < graph.lanes; lane++) {
     const nodes = graph.nodes.filter((n) => n.lane === lane);
@@ -68,15 +81,18 @@ function renderBranchGraph(container, graph, options = {}) {
     const y1 = cy(Math.min(...nodes.map((n) => n.row)));
     const y2 = cy(Math.max(...nodes.map((n) => n.row)));
     tracks.push(
-      `<line class="bg-track${lane === 0 ? " trunk" : ""}" x1="${cx(lane)}" y1="${y1}" x2="${cx(lane)}" y2="${y2}" />`
+      `<line class="bg-track${lane === 0 ? " trunk" : ""}" x1="${cx(lane)}" y1="${y1}" x2="${cx(lane)}" y2="${y2}" style="stroke:${laneColor(lane)};stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:1" />`
     );
   }
   const edges = graph.edges.map((e) => {
     const a = byId.get(e.from), b = byId.get(e.to);
     if (!a || !b) return "";
     const x1 = cx(e.fromLane ?? a.lane), y1 = cy(e.fromRow ?? a.row), x2 = cx(e.toLane ?? b.lane), y2 = cy(e.toRow ?? b.row);
-    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
-    return `<path class="bg-edge ${esc(e.type)}" d="${d}" fill="none" />`;
+    const h = y2 - y1;
+    const d = `M ${x1} ${y1} C ${x1} ${y1 + h / 2}, ${x2} ${y2 - h / 2}, ${x2} ${y2}`;
+    const lane = e.type === "merge-suggest" ? e.fromLane ?? a.lane : e.toLane ?? b.lane;
+    const dash = e.type === "merge-suggest" ? "stroke-dasharray:5 4;opacity:.8" : "stroke-dasharray:none;opacity:1";
+    return `<path class="bg-edge ${esc(e.type)}" d="${d}" fill="none" style="stroke:${laneColor(lane)};stroke-width:2;stroke-linecap:round;stroke-linejoin:round;${dash}" />`;
   });
   const dots = [];
   const labels = [];
@@ -90,16 +106,16 @@ function renderBranchGraph(container, graph, options = {}) {
     const selected = options.selectedId === n.id ? " selected" : "";
     const clusterClick = n.role === "collapsed" && n.cluster ? ` data-cluster="${esc(n.cluster)}"` : "";
     dots.push(
-      `<circle class="bg-dot ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}"${clusterClick} cx="${x}" cy="${y}" r="${n.role === "trunk" ? 6 : 5}" />`
+      `<circle class="bg-dot ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}"${clusterClick} cx="${x}" cy="${y}" r="${n.role === "trunk" ? 5 : 4}" style="fill:${laneColor(n.lane)};stroke:var(--bg, light-dark(#fff, #1b1b1b));stroke-width:2;stroke-dasharray:none;opacity:1" />`
     );
     labels.push(
       `<div class="bg-label ${esc(n.role)} ${esc(status)}${selected}" data-id="${esc(n.id)}" style="left:${labelX}px;top:${y - rowH / 2}px;right:${pad}px;height:${rowH}px">
           <button type="button" class="bg-name" data-id="${esc(n.id)}"${clusterClick} title="${title}">${title}</button>
           <span class="bg-meta">${esc(dateLabel(n.time))}</span>
-          ${diff}
-          ${n.clusterSize ? `<span class="bg-count">${esc(n.clusterLabel)} \xB7 ${n.clusterSize}</span><button type="button" class="bg-name bg-cluster-toggle" data-cluster="${esc(n.cluster)}" aria-expanded="${!!n.expanded}">${n.expanded ? "\u6536\u8D77" : "\u5C55\u5F00"}</button>` : ""}
-          ${n.baseline && n.baseline !== n.id ? `<span class="bg-meta">\u5BF9\u6BD4\uFF1A${esc(n.baselineLabel || n.baseline)}</span>` : ""}
-          ${unique}
+          <span class="bg-meta bg-role-cell"${n.baseline && n.baseline !== n.id ? ` title="\u5BF9\u6BD4\uFF1A${esc(n.baselineLabel || n.baseline)}"` : ""}>${diff}</span>
+          <span class="bg-meta bg-count">${n.clusterSize ? `${esc(n.clusterLabel)} \xB7 ${n.clusterSize}` : ""}</span>
+          <span class="bg-meta bg-expand-cell">${n.clusterSize ? `<button type="button" class="bg-name bg-cluster-toggle" data-cluster="${esc(n.cluster)}" aria-expanded="${!!n.expanded}">${n.expanded ? "\u6536\u8D77" : "\u5C55\u5F00"}</button>` : ""}</span>
+          <span class="bg-tags">${unique}</span>
         </div>`
     );
   }
